@@ -31,7 +31,7 @@ export type GameRole = {
 
 export const DEFAULT_SCENARIO = {
   id: "demo-demon",
-  brand: "SideQuest / RoomRaid",
+  brand: "Bounce / RoomRaid",
   title: "Defeat the Demo Demon",
   subtitle: "A 90-second raid for rooms full of strangers.",
   intro:

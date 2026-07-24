@@ -96,11 +96,11 @@ type View = "landing" | "host" | "player";
 const ROOM_CODE_PATTERN = /^[A-Z2-9]{6}$/;
 
 function hostStorageKey(code: string) {
-  return `sidequest:host:${code}`;
+  return `bounce:host:${code}`;
 }
 
 function playerStorageKey(code: string) {
-  return `sidequest:player:${code}`;
+  return `bounce:player:${code}`;
 }
 
 function getStoredPlayer(code: string): PlayerSession | null {
@@ -164,7 +164,7 @@ function activeChoice(state: RoomState, player?: PublicPlayer) {
   return state.currentRound.choices.find((choice) => choice.id === player.lastAction) ?? null;
 }
 
-export default function SideQuestClient() {
+export default function BounceClient() {
   const [view, setView] = useState<View>("landing");
   const [state, setState] = useState<RoomState | null>(null);
   const [roomCode, setRoomCode] = useState("");
@@ -410,7 +410,7 @@ export default function SideQuestClient() {
       : 0;
 
   return (
-    <main className="sidequest-shell">
+    <main className="bounce-shell">
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <div className="grid-noise" />
@@ -466,7 +466,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
       <span className="brand-spark" aria-hidden="true">
         ✦
       </span>
-      <span>sidequest</span>
+      <span>bounce</span>
     </div>
   );
 }
@@ -578,7 +578,7 @@ function LoadingScreen({ view, onLeave }: { view: View; onLeave: () => void }) {
       <div className="loading-orb" aria-hidden="true">
         <span>✦</span>
       </div>
-      <p className="kicker">SIDEQUEST IS CONNECTING</p>
+      <p className="kicker">BOUNCE IS CONNECTING</p>
       <h1>{view === "host" ? "LOADING YOUR CONTROL ROOM" : "FINDING THE RAID"}</h1>
       <p>Keeping the screen simple while we sync the room.</p>
       <button type="button" className="text-button" onClick={onLeave}>
@@ -1120,7 +1120,7 @@ function ResultsScreen({
         <p className="next-move">
           <strong>Your next move:</strong> Ask the person you met, “What are you building next?”
         </p>
-        <button type="button" className="button button-lime button-xl" onClick={onLeave}>BACK TO SIDEQUEST</button>
+        <button type="button" className="button button-lime button-xl" onClick={onLeave}>BACK TO BOUNCE</button>
       </section>
     );
   }

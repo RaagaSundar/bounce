@@ -1,7 +1,7 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
- * Durable state for a RoomRaid room. Keep game rules in `game-store.ts`; this
+ * Durable state for a Bounce room. Keep game rules in `game-store.ts`; this
  * schema intentionally only models the pieces that must survive reloads.
  */
 export const gameRooms = sqliteTable(

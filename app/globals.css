@@ -56,7 +56,7 @@ summary:focus-visible {
   outline-offset: 3px;
 }
 
-.sidequest-shell {
+.bounce-shell {
   position: relative;
   isolation: isolate;
   min-height: 100dvh;
@@ -1905,7 +1905,7 @@ summary:focus-visible {
 }
 
 @media (max-width: 640px) {
-  .sidequest-shell { overflow-y: auto; }
+  .bounce-shell { overflow-y: auto; }
   .landing-page { padding: 21px 19px 20px; }
   .nav-note { display: none; }
   .landing-grid { gap: 7px; }

@@ -34,6 +34,6 @@ export function json(payload: unknown, status = 200) {
 
 export function routeError(error: unknown) {
   if (error instanceof GameStoreError) return json({ error: error.message }, error.status);
-  console.error("RoomRaid API error", error);
+  console.error("Bounce API error", error);
   return json({ error: "Something went wrong. Please try again." }, 500);
 }

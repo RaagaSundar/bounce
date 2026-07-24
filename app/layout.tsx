@@ -13,13 +13,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const title = "SideQuest — turn waiting time into shared momentum";
+const title = "Bounce — turn waiting time into shared momentum";
 const description =
   "One screen. Every phone. A 90-second live social game that turns strangers into a crew.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "sidequest.live";
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "bounce.live";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
   const origin = `${protocol}://${host}`;
 
@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title,
       description,
       type: "website",
-      images: [{ url: "/og.png", width: 1536, height: 1024, alt: "SideQuest live event game" }],
+      images: [{ url: "/og.png", width: 1536, height: 1024, alt: "Bounce live event game" }],
     },
     twitter: {
       card: "summary_large_image",
