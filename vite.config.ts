@@ -16,29 +16,51 @@ import { defineConfig } from "vite";
 // Kept in the environment rather than committed because the id identifies a
 // real resource in a specific account.
 const PLACEHOLDER_D1_DATABASE_ID = "00000000-0000-4000-8000-000000000000";
-const d1DatabaseId = process.env.CLOUDFLARE_D1_DATABASE_ID ?? PLACEHOLDER_D1_DATABASE_ID;
+const configuredD1Id = process.env.CLOUDFLARE_D1_DATABASE_ID;
 const d1DatabaseName = process.env.CLOUDFLARE_D1_DATABASE_NAME ?? "bounce-d1";
+const isProductionBuild = process.env.NODE_ENV === "production";
 
-if (process.env.NODE_ENV === "production" && d1DatabaseId === PLACEHOLDER_D1_DATABASE_ID) {
-  // A warning, not a throw: `npm run build` is also how CI and local smoke
-  // checks run, and neither needs a real database.
+/**
+ * D1 is the archive only - finished-game history. Every live surface (rooms,
+ * sockets, all gameplay) runs on Durable Objects and does not touch it.
+ *
+ * So the binding is deliberately optional. Deploying with a database_id that
+ * does not exist fails the whole deploy, which would block shipping over a
+ * feature nothing in the demo path needs. With no id configured we simply omit
+ * the binding: getD1() returns null, archive writes are skipped, and
+ * /api/rooms/:code/history returns an empty list instead of erroring.
+ *
+ * Locally the placeholder is fine - Miniflare ignores the id and just makes a
+ * database - so dev keeps full archive behaviour with no setup.
+ *
+ * To enable the archive in production:
+ *   npx wrangler d1 create bounce-d1          # prints the real id
+ *   CLOUDFLARE_D1_DATABASE_ID=<id> npm run deploy
+ */
+const d1Databases =
+  configuredD1Id || !isProductionBuild
+    ? [
+        {
+          binding: "DB",
+          database_name: d1DatabaseName,
+          database_id: configuredD1Id ?? PLACEHOLDER_D1_DATABASE_ID,
+        },
+      ]
+    : [];
+
+if (isProductionBuild && !configuredD1Id) {
   console.warn(
-    "\n[bounce] Building with the placeholder D1 database id.\n" +
-      "         Set CLOUDFLARE_D1_DATABASE_ID before `wrangler deploy`, or the\n" +
-      "         deployed worker will bind a database that does not exist.\n",
+    "\n[bounce] Building without a D1 binding. Gameplay is unaffected - it all\n" +
+      "         runs on Durable Objects - but finished games will not be archived\n" +
+      "         and /api/rooms/:code/history will return an empty list.\n" +
+      "         Set CLOUDFLARE_D1_DATABASE_ID to enable it.\n",
   );
 }
 
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
-  d1_databases: [
-    {
-      binding: "DB",
-      database_name: d1DatabaseName,
-      database_id: d1DatabaseId,
-    },
-  ],
+  d1_databases: d1Databases,
   // One Durable Object per live room. It is the strongly-consistent authority
   // for "what is happening in this room right now"; D1 above is the archive.
   durable_objects: {
