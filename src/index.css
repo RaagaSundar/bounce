@@ -1,0 +1,205 @@
+@import '@fontsource/anton';
+@import '@fontsource/space-mono';
+@import '@fontsource/space-mono/700.css';
+@import '@fontsource/archivo';
+@import '@fontsource/archivo/500.css';
+@import '@fontsource/archivo/600.css';
+@import '@fontsource/archivo/700.css';
+@import '@fontsource/archivo/900.css';
+@import 'tailwindcss';
+
+/* ————————————————————————————————————————————————
+   BOUNCE — INK & ACID
+   Stage LED board (ink) × printed event ephemera (bone).
+   No glow. No glass. Texture, type, hard geometry.
+   ———————————————————————————————————————————————— */
+
+@theme {
+  --color-ink: #141412;
+  --color-inkdeep: #0c0c0a;
+  --color-bone: #e8e4d8;
+  --color-bonedim: #d9d4c4;
+  --color-acid: #c6ff32;
+  --color-signal: #ff4b1f;
+  --color-stone: #8b8778;
+  --color-cobalt: #3d5afe;
+
+  --font-display: 'Anton', 'Arial Narrow', sans-serif;
+  --font-mono: 'Space Mono', 'Courier New', monospace;
+  --font-body: 'Archivo', 'Helvetica Neue', sans-serif;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-ink);
+  color: var(--color-bone);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-acid);
+  color: var(--color-ink);
+}
+
+/* ——— display type helpers ——— */
+.display {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.86;
+}
+
+.mono-label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+/* outline type — hollow center, hard stroke */
+.type-outline-acid {
+  color: transparent;
+  -webkit-text-stroke: 2px var(--color-acid);
+}
+.type-outline-ink {
+  color: transparent;
+  -webkit-text-stroke: 2px var(--color-ink);
+}
+.type-outline-bone {
+  color: transparent;
+  -webkit-text-stroke: 2px var(--color-bone);
+}
+
+/* ——— film grain ——— */
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 300 300' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
+  animation: grain-shift 0.9s steps(4) infinite;
+}
+@keyframes grain-shift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2%, 3%); }
+  50% { transform: translate(3%, -2%); }
+  75% { transform: translate(-3%, -3%); }
+  100% { transform: translate(2%, 2%); }
+}
+
+/* ——— op-art concentric waves (bone surfaces) ——— */
+.op-rings {
+  background-image: repeating-radial-gradient(
+    circle at var(--op-x, 20%) var(--op-y, 30%),
+    transparent 0px,
+    transparent 9px,
+    color-mix(in srgb, var(--color-ink) 14%, transparent) 9px,
+    color-mix(in srgb, var(--color-ink) 14%, transparent) 10.5px
+  );
+}
+
+/* ——— LED dot matrix (CSS fallback / accents) ——— */
+.led-dots {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--color-acid) 22%, transparent) 1.2px, transparent 1.3px);
+  background-size: 14px 14px;
+}
+
+/* ——— scanlines for "live feed" elements ——— */
+.scanlines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgb(0 0 0 / 0.14) 3px 4px);
+}
+
+/* ——— hairlines ——— */
+.hairline-bone { border-color: color-mix(in srgb, var(--color-bone) 18%, transparent); }
+.hairline-ink { border-color: color-mix(in srgb, var(--color-ink) 22%, transparent); }
+
+/* ——— hard offset shadows ——— */
+.hard-shadow-ink { box-shadow: 5px 5px 0 0 var(--color-ink); }
+.hard-shadow-acid { box-shadow: 5px 5px 0 0 var(--color-acid); }
+.hard-shadow-bone { box-shadow: 5px 5px 0 0 var(--color-bone); }
+
+/* ——— perforation (ticket tear line) ——— */
+.perf-h {
+  background-image: linear-gradient(90deg, currentColor 50%, transparent 50%);
+  background-size: 12px 2px;
+  background-repeat: repeat-x;
+  height: 2px;
+  opacity: 0.35;
+}
+
+/* ——— marquee ——— */
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x var(--marquee-t, 18s) linear infinite;
+}
+
+/* ——— stamp slam ——— */
+@keyframes stamp-in {
+  0% { transform: scale(2.2) rotate(var(--stamp-r, -8deg)); opacity: 0; }
+  55% { transform: scale(0.92) rotate(var(--stamp-r, -8deg)); opacity: 1; }
+  75% { transform: scale(1.06) rotate(var(--stamp-r, -8deg)); }
+  100% { transform: scale(1) rotate(var(--stamp-r, -8deg)); opacity: 1; }
+}
+.stamp-in { animation: stamp-in 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+
+/* ——— flash frame (the visual "ding") ——— */
+@keyframes flash-frame {
+  0%, 100% { opacity: 0; }
+  10%, 45% { opacity: 1; }
+}
+
+/* ——— screen shake ——— */
+@keyframes shake-hard {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-7px, 4px); }
+  40% { transform: translate(6px, -5px); }
+  60% { transform: translate(-4px, -3px); }
+  80% { transform: translate(3px, 5px); }
+}
+.shake-hard { animation: shake-hard 0.34s linear both; }
+
+/* ——— blink ——— */
+@keyframes blink-step {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.blink { animation: blink-step 1.1s steps(1) infinite; }
+
+/* ——— VU meter ——— */
+@keyframes vu {
+  0%, 100% { transform: scaleY(0.2); }
+  50% { transform: scaleY(1); }
+}
+
+/* scrollbars off */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+/* custom cursor zones (host + landing, fine pointers only) */
+@media (pointer: fine) {
+  .cursor-none-zone, .cursor-none-zone * { cursor: none !important; }
+}
