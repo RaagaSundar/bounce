@@ -7,19 +7,52 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
+# Dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing
+/coverage
+
+# Build output
+/dist/
 dist-ssr
+/.next/
+/.vinext/
+/out/
 *.local
+
+# Cloudflare / Wrangler
+/.wrangler/
+
+# Env files (can opt-in for committing if needed)
+.env*
+
+# TypeScript
+next-env.d.ts
+
+# Tooling scratch
+/outputs/
+/work/
+.gstack/
+
+# Misc
+.DS_Store
+*.pem
+.vercel
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.gstack/
