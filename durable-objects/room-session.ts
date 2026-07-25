@@ -58,6 +58,8 @@ export class RoomSession extends DurableObject<Env> {
   private inputBudget = new Map<string, { windowStart: number; used: number }>();
   /** When the current game began, for the archive record. */
   private startedAt: number | null = null;
+  /** Tick interval of the running game; real-time modes ask for a faster one. */
+  private tickMs = TICK_MS;
   /** In-flight archive-schema bootstrap, deduped per instance. */
   private schemaReady: Promise<void> | null = null;
 
@@ -72,6 +74,7 @@ export class RoomSession extends DurableObject<Env> {
       this.game = (await ctx.storage.get<ActiveGame>("game")) ?? null;
       this.metBefore = new Set((await ctx.storage.get<string[]>("metBefore")) ?? []);
       this.startedAt = (await ctx.storage.get<number>("startedAt")) ?? null;
+      this.tickMs = (await ctx.storage.get<number>("tickMs")) ?? TICK_MS;
     });
   }
 
@@ -349,11 +352,13 @@ export class RoomSession extends DurableObject<Env> {
       await this.ctx.storage.put("metBefore", [...this.metBefore]);
     }
 
+    this.tickMs = game.tickMs ?? TICK_MS;
+    await this.ctx.storage.put("tickMs", this.tickMs);
     this.startedAt = now;
     await this.ctx.storage.put("startedAt", now);
     await this.persistGame();
     this.broadcastGame();
-    await this.ctx.storage.setAlarm(now + TICK_MS);
+    await this.ctx.storage.setAlarm(now + this.tickMs);
   }
 
   private async onHostEnd(ws: WebSocket) {
@@ -404,7 +409,7 @@ export class RoomSession extends DurableObject<Env> {
       return; // stop ticking; the room can hibernate again
     }
 
-    await this.ctx.storage.setAlarm(now + TICK_MS);
+    await this.ctx.storage.setAlarm(now + this.tickMs);
   }
 
   // ── plumbing ──────────────────────────────────────────────────────────────

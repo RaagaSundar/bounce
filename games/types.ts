@@ -52,6 +52,14 @@ export interface MiniGame<TState> {
   scope: GameScope;
   meta: MiniGameMeta;
 
+  /**
+   * Server tick interval for this game, in ms. Defaults to 120, which is fine
+   * for phase- and countdown-driven modes. A real-time game with movement and
+   * projectiles needs to integrate physics far more often than that, so it
+   * asks for a shorter tick; the session honours it per game.
+   */
+  tickMs?: number;
+
   createInitialState(setup: GameSetup): TState;
 
   /**

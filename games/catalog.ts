@@ -1,3 +1,4 @@
+import { arena } from "./arena";
 import { brawl } from "./brawl";
 import { crossfire } from "./crossfire";
 import { motionDuel } from "./motion-duel";
@@ -19,6 +20,7 @@ export type AnyMiniGame = MiniGame<any>;
  * a solo-playable leaderboard doesn't belong (Reaction Tap was cut for this).
  */
 export const GAME_CATALOG: readonly AnyMiniGame[] = [
+  arena,
   brawl,
   motionDuel,
   pairSprint,

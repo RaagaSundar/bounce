@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { buzz, useRoomSocket } from "../live/useRoomSocket";
 import { useMotion } from "../live/useMotion";
+import { ArenaPad, type ArenaView } from "../live/arena-ui";
 import { Ambient, EqBars, GlowBtn, Orb } from "../live/arcade";
 
 type BrawlView = {
@@ -171,6 +172,16 @@ export default function PlayPage() {
           {results.headline}
         </p>
       </Shell>
+    );
+  }
+
+  if (view && viewGameId === "arena") {
+    return (
+      <ArenaPad
+        view={view as unknown as ArenaView}
+        onStick={(dx, dy) => send({ type: "input", input: { type: "stick", dx, dy } })}
+        onFire={() => send({ type: "input", input: { type: "fire" } })}
+      />
     );
   }
 

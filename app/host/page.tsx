@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 
 import { useRoomSocket } from "../live/useRoomSocket";
 import { Ambient, EqBars, GlowBtn, Orb } from "../live/arcade";
+import { ArenaStage, type ArenaView } from "../live/arena-ui";
 
 // Ambiguous glyphs are excluded so a code read off a projector is unambiguous.
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -22,6 +23,7 @@ type DuelHostView = {
 };
 
 const GAME_FLAIR: Record<string, { icon: string; grad: string }> = {
+  arena: { icon: "🎮", grad: "linear-gradient(135deg, var(--lime), var(--magenta))" },
   brawl: { icon: "⚔️", grad: "linear-gradient(135deg, var(--magenta), var(--amber))" },
   "motion-duel": { icon: "🤝", grad: "linear-gradient(135deg, var(--cyan), var(--violet))" },
   "pair-sprint": { icon: "🏃", grad: "linear-gradient(135deg, var(--lime), var(--cyan))" },
@@ -33,12 +35,12 @@ const GAME_FLAIR: Record<string, { icon: string; grad: string }> = {
  * run ahead of the UI; anything not listed shows as "in the lab" instead of
  * starting a mode the big screen cannot render mid-demo.
  */
-const PLAYABLE = new Set(["brawl", "motion-duel"]);
+const PLAYABLE = new Set(["arena", "brawl", "motion-duel"]);
 
 export default function HostPage() {
   const [code, setCode] = useState("");
   // What RUN IT BACK restarts; also which stage a live view belongs to.
-  const lastStarted = useRef<string>("brawl");
+  const lastStarted = useRef<string>("arena");
 
   // The code lives in the URL so a projector refresh keeps the same room.
   useEffect(() => {
@@ -125,6 +127,8 @@ export default function HostPage() {
             onAgain={() => start(lastStarted.current)}
             onLobby={() => send({ type: "host:end" })}
           />
+        ) : view && viewGameId === "arena" ? (
+          <ArenaStage view={view as unknown as ArenaView} />
         ) : view && viewGameId === "motion-duel" ? (
           <DuelStage groups={(groups ?? []).map((g) => ({ id: g.id, view: g.view as unknown as DuelHostView }))} />
         ) : (
