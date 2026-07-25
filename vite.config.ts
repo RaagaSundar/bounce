@@ -37,7 +37,9 @@ const isProductionBuild = process.env.NODE_ENV === "production";
  *   npx wrangler d1 create bounce-d1          # prints the real id
  *   CLOUDFLARE_D1_DATABASE_ID=<id> npm run deploy
  */
-const d1Databases =
+type D1Binding = { binding: string; database_name: string; database_id: string };
+
+const d1Databases: D1Binding[] =
   configuredD1Id || !isProductionBuild
     ? [
         {
@@ -83,6 +85,11 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    // Dev-only: lets a tunnel (localtunnel/ngrok/etc.) proxy in with a
+    // hostname Vite doesn't recognize. Never used in the deployed Worker.
+    // `as const` matters: widened to `boolean` this fails Vite's type, which
+    // accepts the literal `true` or a hostname list.
+    server: { allowedHosts: true as const },
     plugins: [
       vinext(),
       cloudflare({

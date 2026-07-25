@@ -22,6 +22,7 @@ type DuelHostView = {
 };
 
 const GAME_FLAIR: Record<string, { icon: string; grad: string }> = {
+  brawl: { icon: "⚔️", grad: "linear-gradient(135deg, var(--magenta), var(--amber))" },
   "motion-duel": { icon: "🤝", grad: "linear-gradient(135deg, var(--cyan), var(--violet))" },
   "pair-sprint": { icon: "🏃", grad: "linear-gradient(135deg, var(--lime), var(--cyan))" },
   crossfire: { icon: "🎯", grad: "linear-gradient(135deg, var(--magenta), var(--amber))" },
@@ -32,12 +33,12 @@ const GAME_FLAIR: Record<string, { icon: string; grad: string }> = {
  * run ahead of the UI; anything not listed shows as "in the lab" instead of
  * starting a mode the big screen cannot render mid-demo.
  */
-const PLAYABLE = new Set(["motion-duel"]);
+const PLAYABLE = new Set(["brawl", "motion-duel"]);
 
 export default function HostPage() {
   const [code, setCode] = useState("");
   // What RUN IT BACK restarts; also which stage a live view belongs to.
-  const lastStarted = useRef<string>("motion-duel");
+  const lastStarted = useRef<string>("brawl");
 
   // The code lives in the URL so a projector refresh keeps the same room.
   useEffect(() => {

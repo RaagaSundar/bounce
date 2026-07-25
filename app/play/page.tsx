@@ -6,6 +6,16 @@ import { buzz, useRoomSocket } from "../live/useRoomSocket";
 import { useMotion } from "../live/useMotion";
 import { Ambient, EqBars, GlowBtn, Orb } from "../live/arcade";
 
+type BrawlView = {
+  phase: "intro" | "clash" | "resolve" | "complete";
+  round: number;
+  phaseEndsAt: number;
+  you: { damage: number; stocks: number; out: boolean; kos: number; move: string | null; targetId: string | null; won: boolean } | null;
+  targets: { id: string; name: string; damage: number; stocks: number }[];
+  feed: string[];
+  winner: string | null;
+};
+
 type DuelView = {
   phase: "find" | "steady" | "result" | "complete";
   colour: string;
@@ -161,6 +171,15 @@ export default function PlayPage() {
           {results.headline}
         </p>
       </Shell>
+    );
+  }
+
+  if (view && viewGameId === "brawl") {
+    return (
+      <BrawlPad
+        brawl={view as unknown as BrawlView}
+        onMove={(move, targetId) => send({ type: "input", input: { type: "move", move, targetId } })}
+      />
     );
   }
 
@@ -389,6 +408,123 @@ function DuelPad({ duel, meId, sendMagnitude }: { duel: DuelView; meId: string; 
 }
 
 // ── small shared pieces ─────────────────────────────────────────────────────
+
+
+// -- Brawl -------------------------------------------------------------------
+
+const MOVES = [
+  { id: "attack", label: "ATTACK", beatsLabel: "beats GRAB" },
+  { id: "grab", label: "GRAB", beatsLabel: "beats SHIELD" },
+  { id: "shield", label: "SHIELD", beatsLabel: "beats ATTACK" },
+] as const;
+
+function BrawlPad({
+  brawl,
+  onMove,
+}: {
+  brawl: BrawlView;
+  onMove: (move: string, targetId: string) => void;
+}) {
+  const [target, setTarget] = useState<string | null>(null);
+  const left = useCountdown(brawl.phaseEndsAt);
+  const you = brawl.you;
+
+  // Default to whoever is closest to being knocked out - the read most people
+  // want, and it means one tap is enough if you do not care who.
+  const defaultTarget =
+    target && brawl.targets.some((t) => t.id === target)
+      ? target
+      : ([...brawl.targets].sort((a, b) => b.damage - a.damage)[0]?.id ?? null);
+
+  const wasOut = useRef(false);
+  useEffect(() => {
+    if (you?.out && !wasOut.current) buzz([0, 80, 50, 120]);
+    wasOut.current = Boolean(you?.out);
+  }, [you?.out]);
+
+  if (!you) return <Shell><Prompt label="brawl" /></Shell>;
+
+  if (you.out) {
+    return (
+      <Shell>
+        <Prompt label="brawl" />
+        <div className="text-center">
+          <div className="font-display text-4xl font-bold" style={{ color: "var(--magenta)" }}>KO&apos;D OUT</div>
+          <p className="mt-2" style={{ color: "var(--faint)" }}>{you.kos} KO{you.kos === 1 ? "" : "s"} landed</p>
+        </div>
+      </Shell>
+    );
+  }
+
+  const locked = Boolean(you.move);
+
+  return (
+    <Shell confetti={brawl.phase === "complete" && you.won}>
+      <div className="flex w-full flex-col gap-4">
+        <div className="flex items-baseline justify-between">
+          <span className="font-display text-5xl font-bold" style={{ color: you.damage > 70 ? "var(--magenta)" : "var(--lime)" }}>
+            {you.damage}%
+          </span>
+          <span style={{ color: "var(--faint)" }}>
+            {"◆".repeat(Math.max(0, you.stocks))} · {you.kos} KO
+          </span>
+        </div>
+
+        {brawl.phase === "clash" ? (
+          <>
+            <p className="text-sm" style={{ color: "var(--faint)" }}>
+              {locked ? "locked in — wait for the clash" : `pick a target · ${left ?? ""}s`}
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              {brawl.targets.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { setTarget(t.id); buzz(10); }}
+                  className="rounded-lg border-2 px-3 py-2 text-sm"
+                  style={{
+                    borderColor: t.id === defaultTarget ? "var(--lime)" : "rgb(255 255 255 / 0.18)",
+                    opacity: locked ? 0.4 : 1,
+                  }}
+                >
+                  {t.name} <span style={{ color: "var(--faint)" }}>{t.damage}%</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-2">
+              {MOVES.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  disabled={locked || !defaultTarget}
+                  onClick={() => { buzz(22); if (defaultTarget) onMove(m.id, defaultTarget); }}
+                  className="rounded-xl border-2 px-4 py-4 text-left disabled:opacity-30"
+                  style={{ borderColor: you.move === m.id ? "var(--lime)" : "rgb(255 255 255 / 0.18)" }}
+                >
+                  <span className="font-display text-2xl font-bold">{m.label}</span>
+                  <span className="ml-2 text-xs" style={{ color: "var(--faint)" }}>{m.beatsLabel}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="min-h-[9rem]">
+            <p className="text-sm" style={{ color: "var(--faint)" }}>
+              {brawl.phase === "intro" ? "get ready" : brawl.phase === "complete" ? (brawl.winner ? `${brawl.winner} wins` : "over") : "clash!"}
+            </p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {brawl.feed.slice(0, 5).map((line, i) => (
+                <li key={i} style={{ color: i === 0 ? "var(--paper)" : "var(--faint)" }}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </Shell>
+  );
+}
 
 function Shell({ children, confetti = false }: { children: React.ReactNode; confetti?: boolean }) {
   const fired = useRef(false);
