@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@import '@fontsource/anton';
+@import '@fontsource/space-mono';
+@import '@fontsource/space-mono/700.css';
+@import '@fontsource/archivo';
+@import '@fontsource/archivo/600.css';
+@import '@fontsource/archivo/700.css';
 
 :root {
   --ink: #11111a;
@@ -1977,4 +1983,127 @@ summary:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BOUNCE — INK & ACID
+   Stage LED board (ink) x printed event ephemera (bone).
+   No glow. No glass. Texture, type, hard geometry.
+   Ported from the standalone demo; scoped to .skin-ink-acid so the legacy
+   client above is unaffected.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+@theme {
+  --color-ink: #141412;
+  --color-inkdeep: #0c0c0a;
+  --color-bone: #e8e4d8;
+  --color-bonedim: #d9d4c4;
+  --color-acid: #c6ff32;
+  --color-signal: #ff4b1f;
+  --color-stone: #8b8778;
+  --color-cobalt: #3d5afe;
+}
+
+/* Deliberately NOT --font-display / --font-mono / --font-body: the legacy
+   stylesheet above already defines those at :root, Tailwind hoists @theme
+   above it, so the legacy values win. Worse, its --font-display points at an
+   undefined --font-geist-sans, which makes the declaration invalid and silently
+   inherits the body font. Scoped literal stacks avoid the collision entirely. */
+.skin-ink-acid {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  font-family: 'Archivo', 'Helvetica Neue', sans-serif;
+  background: var(--color-ink);
+  color: var(--color-bone);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+.skin-ink-acid ::selection { background: var(--color-acid); color: var(--color-ink); }
+
+.skin-ink-acid .display {
+  font-family: 'Anton', 'Arial Narrow', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.86;
+}
+.skin-ink-acid .mono-label {
+  font-family: 'Space Mono', 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+.skin-ink-acid .type-outline-acid { color: transparent; -webkit-text-stroke: 2px var(--color-acid); }
+.skin-ink-acid .type-outline-ink { color: transparent; -webkit-text-stroke: 2px var(--color-ink); }
+
+/* film grain */
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 300 300' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
+  animation: grain-shift 0.9s steps(4) infinite;
+}
+@keyframes grain-shift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2%, 3%); }
+  50% { transform: translate(3%, -2%); }
+  75% { transform: translate(-3%, -3%); }
+  100% { transform: translate(2%, 2%); }
+}
+
+.led-dots {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--color-acid) 22%, transparent) 1.2px, transparent 1.3px);
+  background-size: 14px 14px;
+}
+.scanlines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgb(0 0 0 / 0.14) 3px 4px);
+}
+.hairline-bone { border-color: color-mix(in srgb, var(--color-bone) 18%, transparent); }
+.hard-shadow-ink { box-shadow: 5px 5px 0 0 var(--color-ink); }
+.hard-shadow-acid { box-shadow: 5px 5px 0 0 var(--color-acid); }
+.hard-shadow-bone { box-shadow: 5px 5px 0 0 var(--color-bone); }
+
+@keyframes stamp-in {
+  0% { transform: scale(2.2) rotate(var(--stamp-r, -8deg)); opacity: 0; }
+  55% { transform: scale(0.92) rotate(var(--stamp-r, -8deg)); opacity: 1; }
+  75% { transform: scale(1.06) rotate(var(--stamp-r, -8deg)); }
+  100% { transform: scale(1) rotate(var(--stamp-r, -8deg)); opacity: 1; }
+}
+.stamp-in { animation: stamp-in 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+
+@keyframes shake-hard {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-7px, 4px); }
+  40% { transform: translate(6px, -5px); }
+  60% { transform: translate(-4px, -3px); }
+  80% { transform: translate(3px, 5px); }
+}
+.shake-hard { animation: shake-hard 0.34s linear both; }
+
+@keyframes blink-step { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.blink { animation: blink-step 1.1s steps(1) infinite; }
+
+@keyframes go-flare {
+  0% { transform: scale(0.7); opacity: 0; }
+  40% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.go-flare { animation: go-flare 0.22s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+
+.skin-ink-acid ::-webkit-scrollbar { display: none; }
+.skin-ink-acid * { scrollbar-width: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .grain::after, .blink, .stamp-in, .shake-hard, .go-flare { animation: none; }
 }
