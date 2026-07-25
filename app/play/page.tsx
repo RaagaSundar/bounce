@@ -4,24 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { buzz, useRoomSocket } from "../live/useRoomSocket";
 import { useMotion } from "../live/useMotion";
-
-type TapView = {
-  phase: "arming" | "waiting" | "live" | "reveal" | "complete";
-  round: number;
-  totalRounds: number;
-  armingEndsAt: number | null;
-  tapsIn: number;
-  playerCount: number;
-  you: {
-    tapped: boolean;
-    reactionMs: number | null;
-    rank: number | null;
-    roundPoints: number;
-    falseStart: boolean;
-    score: number;
-  };
-  lastRound: { winner: { name: string; reactionMs: number } | null } | null;
-};
+import { Ambient, EqBars, GlowBtn, Orb } from "../live/arcade";
 
 type DuelView = {
   phase: "find" | "steady" | "result" | "complete";
@@ -34,8 +17,8 @@ type DuelView = {
   winner: string | null;
 };
 
-/** Ink text on the light pair colours, bone on the dark ones. */
-function inkOn(colour: string): boolean {
+/** Dark text on the light pair colours, light text on the dark ones. */
+function darkTextOn(colour: string): boolean {
   return colour === "#c6ff32" || colour === "#e8e4d8";
 }
 
@@ -91,13 +74,13 @@ export default function PlayPage() {
   if (!code) {
     return (
       <Shell>
-        <Prompt label="ROOM CODE" />
+        <Prompt label="room code" />
         <form
           onSubmit={(e) => {
             e.preventDefault();
             if (/^[A-Za-z2-9]{6}$/.test(codeDraft)) setCode(codeDraft.toUpperCase());
           }}
-          className="w-full"
+          className="w-full max-w-sm"
         >
           <input
             value={codeDraft}
@@ -105,9 +88,12 @@ export default function PlayPage() {
             placeholder="ABC234"
             autoCapitalize="characters"
             autoCorrect="off"
-            className="w-full border-2 hairline-bone bg-transparent px-4 py-4 text-center display text-4xl tracking-widest text-bone outline-none focus:border-acid"
+            className="glass w-full rounded-2xl px-4 py-4 text-center font-display text-4xl font-bold tracking-[0.2em] outline-none transition-colors"
+            style={{ color: "var(--milk)", caretColor: "var(--magenta)" }}
           />
-          <SubmitButton disabled={codeDraft.length !== 6}>ENTER →</SubmitButton>
+          <GlowBtn tone="lime" disabled={codeDraft.length !== 6} className="mt-4 w-full py-4 text-xl" {...{ type: "submit" as const }}>
+            LET ME IN ⚡
+          </GlowBtn>
         </form>
       </Shell>
     );
@@ -116,7 +102,7 @@ export default function PlayPage() {
   if (name === null) {
     return (
       <Shell>
-        <Prompt label={`ROOM ${code}`} />
+        <Prompt label={`room ${code}`} />
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -125,15 +111,23 @@ export default function PlayPage() {
               setName(draft.trim());
             }
           }}
-          className="w-full"
+          className="w-full max-w-sm"
         >
+          <div className="mb-4 flex justify-center">
+            <div className="float-y">
+              <Orb id={draft.trim() || "?"} size={110} />
+            </div>
+          </div>
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value.slice(0, 18))}
-            placeholder="YOUR NAME"
-            className="w-full border-2 hairline-bone bg-transparent px-4 py-4 text-center display text-3xl text-bone outline-none focus:border-acid"
+            placeholder="your name"
+            className="glass w-full rounded-2xl px-4 py-4 text-center font-display text-3xl font-bold outline-none"
+            style={{ color: "var(--milk)", caretColor: "var(--magenta)" }}
           />
-          <SubmitButton disabled={draft.trim().length < 2}>JOIN THE ROOM →</SubmitButton>
+          <GlowBtn tone="hot" disabled={draft.trim().length < 2} className="mt-4 w-full py-4 text-xl" {...{ type: "submit" as const }}>
+            THAT&apos;S ME →
+          </GlowBtn>
         </form>
       </Shell>
     );
@@ -142,9 +136,9 @@ export default function PlayPage() {
   if (error) {
     return (
       <Shell>
-        <div className="border-2 border-signal px-5 py-4 text-center" style={{ color: "var(--color-signal)" }}>
-          <div className="mono-label">CAN&apos;T JOIN</div>
-          <p className="mt-2 font-mono text-sm">{error}</p>
+        <div className="glass rounded-3xl px-6 py-5 text-center" style={{ color: "var(--coral)" }}>
+          <div className="font-display text-sm font-bold uppercase tracking-[0.25em]">can&apos;t join</div>
+          <p className="mt-2 text-sm">{error}</p>
         </div>
       </Shell>
     );
@@ -153,25 +147,20 @@ export default function PlayPage() {
   if (results) {
     const mine = results.scores.findIndex((s) => s.playerId === me?.playerId);
     return (
-      <Shell>
-        <Prompt label="FINAL" />
-        <div className="stamp-in text-center">
-          <div className="display text-8xl text-acid">{mine >= 0 ? `#${mine + 1}` : "—"}</div>
-          <div className="mono-label mt-2 text-stone">
-            {results.scores[mine]?.points ?? 0} POINTS
+      <Shell confetti>
+        <Prompt label="final" />
+        <div className="slam-in text-center">
+          <div className="font-display gradient-text text-[7rem] font-black leading-none">
+            {mine >= 0 ? `#${mine + 1}` : "—"}
+          </div>
+          <div className="font-display mt-2 text-xl font-bold" style={{ color: "var(--lime)" }}>
+            {results.scores[mine]?.points ?? 0} points
           </div>
         </div>
-        <p className="mt-6 text-center text-bonedim">{results.headline}</p>
+        <p className="mt-4 text-center" style={{ color: "var(--faint)" }}>
+          {results.headline}
+        </p>
       </Shell>
-    );
-  }
-
-  if (view && viewGameId === "reaction-tap") {
-    return (
-      <TapPad
-        tap={view as unknown as TapView}
-        onTap={() => send({ type: "input", input: { type: "tap" } })}
-      />
     );
   }
 
@@ -179,6 +168,7 @@ export default function PlayPage() {
     return (
       <DuelPad
         duel={view as unknown as DuelView}
+        meId={me?.playerId ?? "me"}
         sendMagnitude={(magnitude) => send({ type: "input", input: { type: "motion", magnitude } })}
       />
     );
@@ -186,101 +176,28 @@ export default function PlayPage() {
 
   return (
     <Shell>
-      <Prompt label={`ROOM ${code}`} />
-      <div className="text-center">
-        <div className="display text-5xl text-acid">YOU&apos;RE IN</div>
-        <p className="mono-label mt-3 text-stone">
-          {status === "live" ? `${room?.players.length ?? 1} IN THE ROOM` : status.toUpperCase()}
+      <Prompt label={`room ${code}`} />
+      <div className="relative flex flex-col items-center text-center">
+        {me ? (
+          <div className="relative mb-5">
+            <span className="ring-out absolute inset-0 rounded-full border-2" style={{ borderColor: "rgb(139 92 246 / 0.5)" }} />
+            <div className="float-y">
+              <Orb id={me.playerId} size={120} />
+            </div>
+          </div>
+        ) : null}
+        <div className="font-display glow-lime text-5xl font-black" style={{ color: "var(--lime)" }}>
+          YOU&apos;RE IN
+        </div>
+        <p className="mt-2 font-semibold" style={{ color: "var(--faint)" }}>
+          {status === "live" ? `${room?.players.length ?? 1} in the room` : status}
         </p>
-        <p className="mt-6 text-bonedim">Eyes on the big screen — the host picks what happens next.</p>
+        <EqBars count={18} height={24} className="mt-6 w-44 opacity-60" />
+        <p className="mt-3 text-sm" style={{ color: "var(--faint)" }}>
+          eyes on the big screen — the host picks what happens next
+        </p>
       </div>
     </Shell>
-  );
-}
-
-// ── Reaction Tap ────────────────────────────────────────────────────────────
-
-function TapPad({ tap, onTap }: { tap: TapView; onTap: () => void }) {
-  const buzzed = useRef<string>("");
-  // Server frames flush on a 120ms tick, which is an eternity for a tap. Echo
-  // the press locally the same frame; the server still owns rank and timing.
-  const [pendingRound, setPendingRound] = useState(0);
-
-  useEffect(() => {
-    const key = `${tap.round}:${tap.phase}`;
-    if (buzzed.current === key) return;
-    buzzed.current = key;
-    if (tap.phase === "live") buzz([0, 30]);
-    if (tap.phase === "reveal") buzz(12);
-  }, [tap.phase, tap.round]);
-
-  const live = tap.phase === "live";
-  const jumped = tap.you.falseStart;
-  const tapped = tap.you.tapped || (live && pendingRound === tap.round);
-
-  const background = jumped
-    ? "var(--color-signal)"
-    : live && !tapped
-      ? "var(--color-acid)"
-      : "transparent";
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (!tap.you.tapped && !jumped) {
-          buzz(live ? 22 : [0, 60, 40, 60]);
-          if (live) setPendingRound(tap.round);
-          onTap();
-        }
-      }}
-      className="skin-ink-acid grain flex w-full flex-col items-center justify-center gap-4 border-0 p-8 text-center transition-colors duration-100"
-      style={{ background }}
-    >
-      <div className="mono-label" style={{ color: live && !tapped ? "var(--color-ink)" : "var(--color-stone)" }}>
-        ROUND {tap.round} / {tap.totalRounds}
-      </div>
-
-      {jumped ? (
-        <>
-          <div className="display text-7xl text-bone">TOO SOON</div>
-          <p className="font-mono text-sm text-bone">You jumped the gun. Sit this round out.</p>
-        </>
-      ) : tapped ? (
-        tap.you.tapped ? (
-          <>
-            <div className="display text-8xl text-acid">#{tap.you.rank}</div>
-            <div className="font-mono text-2xl text-bone">{tap.you.reactionMs}ms</div>
-            <div className="mono-label text-stone">+{tap.you.roundPoints} POINTS</div>
-          </>
-        ) : (
-          <div className="go-flare display text-8xl text-acid">IN!</div>
-        )
-      ) : live ? (
-        <div className="go-flare display text-[7rem] leading-none text-ink">TAP</div>
-      ) : tap.phase === "arming" ? (
-        <>
-          <div className="display text-6xl text-bone">GET READY</div>
-          <p className="mono-label text-stone">HANDS OFF</p>
-        </>
-      ) : tap.phase === "waiting" ? (
-        <>
-          <div className="display text-7xl type-outline-acid">WAIT</div>
-          <p className="mono-label text-signal blink">DON&apos;T TAP YET</p>
-        </>
-      ) : (
-        <>
-          <div className="display text-5xl text-bone">
-            {tap.lastRound?.winner ? tap.lastRound.winner.name : "NOBODY"}
-          </div>
-          <p className="mono-label text-stone">TOOK THE ROUND</p>
-        </>
-      )}
-
-      <div className="mono-label mt-4" style={{ color: live && !tapped ? "var(--color-ink)" : "var(--color-stone)" }}>
-        {tap.you.score} PTS TOTAL
-      </div>
-    </button>
   );
 }
 
@@ -289,7 +206,7 @@ function TapPad({ tap, onTap }: { tap: TapView; onTap: () => void }) {
 /** Stream at ~12Hz — comfortably under the server's 30/s input budget. */
 const MOTION_SEND_MS = 80;
 
-function DuelPad({ duel, sendMagnitude }: { duel: DuelView; sendMagnitude: (m: number) => void }) {
+function DuelPad({ duel, meId, sendMagnitude }: { duel: DuelView; meId: string; sendMagnitude: (m: number) => void }) {
   const streaming = duel.phase === "steady" && !duel.you.out;
   const peak = useRef(0);
   const [meter, setMeter] = useState(0);
@@ -320,51 +237,59 @@ function DuelPad({ duel, sendMagnitude }: { duel: DuelView; sendMagnitude: (m: n
   const findLeft = useCountdown(duel.findEndsAt);
   const duelLeft = useCountdown(duel.duelEndsAt);
 
-  const ink = inkOn(duel.colour);
-  const fg = ink ? "var(--color-ink)" : "var(--color-bone)";
+  const dark = darkTextOn(duel.colour);
+  const fg = dark ? "#101318" : "#ffffff";
   const opponentNames = duel.opponents.map((o) => o.name).join(" + ") || "…";
   const needsArming = motionStatus !== "armed";
 
   // FIND: the phone becomes the beacon. Whole screen floods the pair colour.
   if (duel.phase === "find") {
     return (
-      <div className="skin-ink-acid grain flex flex-col items-center justify-center gap-5 p-8 text-center" style={{ background: duel.colour, color: fg }}>
-        <div className="mono-label" style={{ color: fg }}>HOLD YOUR PHONE UP</div>
-        <div className="display text-6xl leading-none">FIND THIS COLOUR</div>
-        <div className="mono-label" style={{ color: fg }}>
-          YOUR DUEL — YOU × {opponentNames.toUpperCase()}
+      <div className="skin-arcade flex flex-col items-center justify-center gap-5 p-8 text-center" style={{ background: duel.colour, color: fg }}>
+        <div className="font-display text-xs font-bold uppercase tracking-[0.3em]" style={{ color: fg, opacity: 0.75 }}>
+          hold your phone up 📳
+        </div>
+        <div className="slam-in font-display text-6xl font-black leading-none">FIND THIS COLOUR</div>
+        <div className="flex items-center gap-3">
+          <Orb id={meId} size={54} />
+          <span className="font-display text-2xl font-black">×</span>
+          {duel.opponents.map((o) => (
+            <Orb key={o.name} id={o.name} size={54} />
+          ))}
+        </div>
+        <div className="font-display text-sm font-bold uppercase tracking-[0.2em]" style={{ color: fg, opacity: 0.8 }}>
+          you × {opponentNames}
         </div>
         {needsArming ? (
-          <button
-            type="button"
+          <GlowBtn
+            tone="hot"
+            className="mt-3 px-9 py-4 text-2xl"
             onClick={() => {
               buzz();
               void arm();
             }}
-            className="mt-4 border-4 px-8 py-5 display text-3xl"
-            style={{ borderColor: fg, color: fg }}
           >
-            {motionStatus === "denied" ? "SENSORS BLOCKED — RETRY" : "ARM SENSORS →"}
-          </button>
+            {motionStatus === "denied" ? "sensors blocked — retry" : "ARM SENSORS 📡"}
+          </GlowBtn>
         ) : (
-          <div className="stamp-in border-2 px-4 py-2 mono-label" style={{ borderColor: fg, color: fg }}>
-            SENSORS HOT — GO MEET THEM
+          <div className="pop-in glass rounded-full px-5 py-2 font-display text-sm font-bold" style={{ color: fg, borderColor: fg }}>
+            sensors hot — go find them 🏃
           </div>
         )}
-        <div className="display text-8xl">{findLeft ?? ""}</div>
+        <div key={findLeft} className="slam-in font-display text-8xl font-black">{findLeft ?? ""}</div>
       </div>
     );
   }
 
-  // STEADY: the duel. Colour shrinks to a frame; the meter is the star.
+  // STEADY: the duel. Your orb sits inside a meter ring that fills as you move.
   if (duel.phase === "steady") {
     if (duel.you.out) {
       return (
-        <div className="skin-ink-acid grain flex flex-col items-center justify-center gap-4 p-8 text-center" style={{ background: "var(--color-signal)" }}>
-          <div className="display text-9xl text-ink">OUT</div>
-          <p className="mono-label text-ink">YOU FLINCHED</p>
-          <p className="mt-4 max-w-xs font-mono text-sm text-ink">
-            The duel&apos;s lost, the introduction isn&apos;t. You&apos;re standing next to {opponentNames} — say hi.
+        <div className="skin-arcade flex flex-col items-center justify-center gap-4 p-8 text-center" style={{ background: "var(--coral)" }}>
+          <div className="slam-in font-display text-9xl font-black text-white">OUT 💥</div>
+          <p className="font-display text-sm font-bold uppercase tracking-[0.25em] text-white/90">you flinched</p>
+          <p className="mt-3 max-w-xs text-sm font-semibold text-white">
+            The duel&apos;s lost — the introduction isn&apos;t. You&apos;re standing next to {opponentNames}. Say hi.
           </p>
         </div>
       );
@@ -373,37 +298,52 @@ function DuelPad({ duel, sendMagnitude }: { duel: DuelView; sendMagnitude: (m: n
     const threshold = duel.threshold ?? 2.6;
     const fill = Math.min(1, meter / (threshold * 1.15));
     const danger = fill > 0.8;
+    const R = 84;
+    const CIRC = 2 * Math.PI * R;
 
     return (
-      <div className="skin-ink-acid grain flex flex-col items-center justify-between p-6 text-center" style={{ border: `10px solid ${duel.colour}` }}>
-        <div className="mono-label text-stone">
-          DUEL VS {opponentNames.toUpperCase()} — {duelLeft ?? "–"}s
+      <div
+        className="skin-arcade flex flex-col items-center justify-between p-7 text-center"
+        style={{ boxShadow: `inset 0 0 0 8px ${duel.colour}`, borderRadius: 0 }}
+      >
+        <div className="font-display text-xs font-bold uppercase tracking-[0.25em]" style={{ color: "var(--faint)" }}>
+          duel vs {opponentNames} — {duelLeft ?? "–"}s
         </div>
 
-        <div className={danger ? "shake-hard" : ""}>
-          <div className="display text-7xl" style={{ color: danger ? "var(--color-signal)" : "var(--color-bone)" }}>
-            HOLD
-            <br />
-            STILL
+        <div className={`font-display text-6xl font-black leading-tight ${danger ? "wobble-shake" : "pulse-soft"}`} style={{ color: danger ? "var(--coral)" : "var(--milk)" }}>
+          HOLD
+          <br />
+          STILL
+        </div>
+
+        {/* the wobble ring: your orb inside a gauge that fills as you move */}
+        <div className="relative grid place-items-center" style={{ width: 220, height: 220 }}>
+          <svg width="220" height="220" viewBox="0 0 220 220" className="absolute inset-0 -rotate-90">
+            <circle cx="110" cy="110" r={R} fill="none" stroke="rgb(255 255 255 / 0.1)" strokeWidth="14" />
+            <circle
+              cx="110"
+              cy="110"
+              r={R}
+              fill="none"
+              stroke={danger ? "var(--coral)" : "var(--cyan)"}
+              strokeWidth="14"
+              strokeLinecap="round"
+              strokeDasharray={CIRC}
+              strokeDashoffset={CIRC * (1 - fill)}
+              style={{ transition: "stroke-dashoffset 90ms linear, stroke 150ms" }}
+            />
+          </svg>
+          <div className={danger ? "wobble-shake" : ""}>
+            <Orb id={meId} size={104} />
           </div>
         </div>
 
-        {/* the wobble meter — climb past the line and you're out */}
-        <div className="relative h-56 w-24 border-2 hairline-bone">
-          <div
-            className="absolute inset-x-0 bottom-0 transition-[height] duration-75"
-            style={{
-              height: `${fill * 100}%`,
-              background: danger ? "var(--color-signal)" : "var(--color-acid)",
-            }}
-          />
-          <div className="absolute inset-x-[-14px] blink" style={{ bottom: `${(1 / 1.15) * 100}%`, borderTop: "3px solid var(--color-signal)" }} />
-        </div>
-
-        <div className="mono-label text-stone">
-          {duel.opponents.filter((o) => o.out).length > 0
-            ? "THEY FLINCHED — STAY FROZEN TO TAKE IT"
-            : "THE LINE PULSES. BREATHE."}
+        <div className="font-display text-xs font-bold uppercase tracking-[0.2em]" style={{ color: danger ? "var(--coral)" : "var(--faint)" }}>
+          {duel.opponents.some((o) => o.out)
+            ? "they flinched 👀 stay frozen to take it"
+            : danger
+              ? "easy… easy…"
+              : "the line pulses. breathe."}
         </div>
       </div>
     );
@@ -413,55 +353,74 @@ function DuelPad({ duel, sendMagnitude }: { duel: DuelView; sendMagnitude: (m: n
   const won = duel.you.won;
   return (
     <div
-      className="skin-ink-acid grain flex flex-col items-center justify-center gap-4 p-8 text-center"
-      style={{ background: won ? "var(--color-acid)" : "transparent" }}
+      className="skin-arcade flex flex-col items-center justify-center gap-4 p-8 text-center"
+      style={won ? { background: "var(--lime)" } : undefined}
     >
-      {won ? (
-        <>
-          <div className="stamp-in display text-9xl text-ink">WON</div>
-          <div className="mono-label text-ink">STEADIEST HAND IN THE PAIR</div>
-        </>
-      ) : (
-        <>
-          <div className="display text-7xl text-bone">{duel.winner ? duel.winner.toUpperCase() : "DEAD HEAT"}</div>
-          <div className="mono-label text-stone">{duel.winner ? "TOOK YOUR DUEL" : "NOBODY FLINCHED"}</div>
-        </>
-      )}
-      <div className="mono-label mt-6" style={{ color: won ? "var(--color-ink)" : "var(--color-stone)" }}>
-        {duel.you.score} PTS THIS GAME
+      {!won ? <Ambient /> : null}
+      <div className="relative z-10">
+        {won ? (
+          <>
+            <div className="slam-in font-display text-8xl font-black leading-none" style={{ color: "#101800" }}>
+              WON 👑
+            </div>
+            <div className="mt-2 font-display text-sm font-bold uppercase tracking-[0.25em]" style={{ color: "#101800" }}>
+              steadiest hand in the pair · +500
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="font-display text-6xl font-black" style={{ color: "var(--milk)" }}>
+              {duel.winner ?? "DEAD HEAT"}
+            </div>
+            <div className="mt-2 font-display text-sm font-bold uppercase tracking-[0.25em]" style={{ color: "var(--faint)" }}>
+              {duel.winner ? "took your duel" : "nobody flinched"}
+            </div>
+          </>
+        )}
+        <div className="mt-6 font-display text-lg font-bold" style={{ color: won ? "#101800" : "var(--lime)" }}>
+          {duel.you.score} pts this game
+        </div>
+        <p className="mt-1 text-sm font-semibold" style={{ color: won ? "#101800" : "var(--faint)" }}>
+          you just met {opponentNames}. that was the point 🤝
+        </p>
       </div>
-      <p className="font-mono text-sm" style={{ color: won ? "var(--color-ink)" : "var(--color-bonedim)" }}>
-        You just met {opponentNames}. That was the point.
-      </p>
     </div>
   );
 }
 
 // ── small shared pieces ─────────────────────────────────────────────────────
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, confetti = false }: { children: React.ReactNode; confetti?: boolean }) {
+  const fired = useRef(false);
+  useEffect(() => {
+    if (!confetti || fired.current) return;
+    fired.current = true;
+    void import("canvas-confetti").then(({ default: fire }) => {
+      fire({
+        particleCount: 120,
+        spread: 90,
+        origin: { y: 0.5 },
+        colors: ["#8b5cf6", "#ff3dae", "#c8ff3e", "#3ee7ff", "#ffb03a"],
+        disableForReducedMotion: true,
+      });
+    });
+  }, [confetti]);
+
   return (
-    <div className="skin-ink-acid grain flex flex-col items-center justify-center gap-6 p-8">{children}</div>
+    <div className="skin-arcade flex flex-col items-center justify-center gap-6 p-8">
+      <Ambient />
+      <div className="relative z-10 flex w-full flex-col items-center gap-6">{children}</div>
+    </div>
   );
 }
 
 function Prompt({ label }: { label: string }) {
   return (
     <div className="text-center">
-      <div className="display text-2xl text-acid">BOUNCE</div>
-      <div className="mono-label mt-1 text-stone">{label}</div>
+      <div className="font-display gradient-text text-3xl font-black tracking-tight">BOUNCE</div>
+      <div className="mt-1 font-display text-xs font-bold uppercase tracking-[0.3em]" style={{ color: "var(--faint)" }}>
+        {label}
+      </div>
     </div>
-  );
-}
-
-function SubmitButton({ children, disabled }: { children: React.ReactNode; disabled: boolean }) {
-  return (
-    <button
-      type="submit"
-      disabled={disabled}
-      className="mt-4 w-full bg-acid px-6 py-4 display text-2xl text-ink hard-shadow-bone disabled:opacity-30"
-    >
-      {children}
-    </button>
   );
 }

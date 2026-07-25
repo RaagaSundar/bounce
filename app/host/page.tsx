@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 import { useRoomSocket } from "../live/useRoomSocket";
+import { Ambient, EqBars, GlowBtn, Orb } from "../live/arcade";
 
 // Ambiguous glyphs are excluded so a code read off a projector is unambiguous.
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -13,25 +14,6 @@ function newCode(): string {
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
 }
 
-type TapView = {
-  phase: "arming" | "waiting" | "live" | "reveal" | "complete";
-  round: number;
-  totalRounds: number;
-  armingEndsAt: number | null;
-  liveSince: number | null;
-  tapsIn: number;
-  playerCount: number;
-  lastRound: { winner: { name: string; reactionMs: number } | null; falseStarts: string[] } | null;
-  board: {
-    playerId: string;
-    name: string;
-    score: number;
-    reactionMs: number | null;
-    rank: number | null;
-    falseStart: boolean;
-  }[];
-};
-
 type DuelHostView = {
   phase: "find" | "steady" | "result" | "complete";
   colour: string;
@@ -39,10 +21,23 @@ type DuelHostView = {
   winner: string | null;
 };
 
+const GAME_FLAIR: Record<string, { icon: string; grad: string }> = {
+  "motion-duel": { icon: "🤝", grad: "linear-gradient(135deg, var(--cyan), var(--violet))" },
+  "pair-sprint": { icon: "🏃", grad: "linear-gradient(135deg, var(--lime), var(--cyan))" },
+  crossfire: { icon: "🎯", grad: "linear-gradient(135deg, var(--magenta), var(--amber))" },
+};
+
+/**
+ * Games whose projector stage + phone pad are actually built. The catalog can
+ * run ahead of the UI; anything not listed shows as "in the lab" instead of
+ * starting a mode the big screen cannot render mid-demo.
+ */
+const PLAYABLE = new Set(["motion-duel"]);
+
 export default function HostPage() {
   const [code, setCode] = useState("");
   // What RUN IT BACK restarts; also which stage a live view belongs to.
-  const lastStarted = useRef<string>("reaction-tap");
+  const lastStarted = useRef<string>("motion-duel");
 
   // The code lives in the URL so a projector refresh keeps the same room.
   useEffect(() => {
@@ -73,42 +68,56 @@ export default function HostPage() {
     send({ type: "host:start", gameId });
   };
 
-  if (!code) return <div className="skin-ink-acid grain" />;
+  if (!code) return <div className="skin-arcade" />;
 
   const inGame = Boolean(view) && !results;
 
   return (
-    <div className="skin-ink-acid grain led-dots flex flex-col">
-      <header className="flex items-center justify-between px-10 pt-8">
-        <div className="flex items-baseline gap-4">
-          <span className="display text-3xl text-acid">BOUNCE</span>
-          <span className="mono-label text-stone">ROOM {code}</span>
+    <div className="skin-arcade flex flex-col">
+      <Ambient />
+
+      <header className="relative z-20 flex items-center justify-between px-8 py-5">
+        <span className="font-display gradient-text text-2xl font-black tracking-tight">BOUNCE</span>
+        <div className="glass flex items-center gap-3 rounded-full px-5 py-2.5 text-sm">
+          <span style={{ color: "var(--faint)" }}>join at</span>
+          <span className="font-display font-bold tracking-wider" style={{ color: "var(--magenta)" }}>
+            /play · {code}
+          </span>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3">
           {inGame ? (
             <button
               type="button"
               onClick={() => send({ type: "host:end" })}
-              className="border-2 border-signal px-4 py-1.5 mono-label"
-              style={{ color: "var(--color-signal)" }}
+              className="glass rounded-full px-4 py-2 text-sm font-semibold transition-transform hover:scale-105"
+              style={{ color: "var(--coral)" }}
             >
-              END GAME ✕
+              end game ✕
             </button>
           ) : null}
-          <div className="mono-label" style={{ color: status === "live" ? "var(--color-acid)" : "var(--color-signal)" }}>
-            <span className={status === "live" ? "" : "blink"}>●</span>{" "}
-            {status === "live" ? "CONNECTED" : status.toUpperCase()}
+          <div className="glass flex items-center gap-2.5 rounded-full px-5 py-2.5 text-sm font-semibold">
+            <span
+              className="pulse-soft h-2.5 w-2.5 rounded-full"
+              style={{
+                background: status === "live" ? "var(--lime)" : "var(--coral)",
+                boxShadow: `0 0 10px ${status === "live" ? "var(--lime)" : "var(--coral)"}`,
+              }}
+            />
+            <span className="font-display" style={{ color: "var(--lime)" }}>
+              {room?.players.length ?? 0}
+            </span>
+            in the room
           </div>
         </div>
       </header>
 
       {error ? (
-        <div className="mx-10 mt-4 border-2 border-signal px-4 py-2 mono-label" style={{ color: "var(--color-signal)" }}>
+        <div className="glass relative z-20 mx-8 rounded-2xl px-4 py-2 text-sm font-semibold" style={{ color: "var(--coral)" }}>
           {error}
         </div>
       ) : null}
 
-      <main className="flex-1 min-h-0 px-10 py-6">
+      <main className="relative z-10 min-h-0 flex-1 px-8 pb-8">
         {results ? (
           <Podium
             results={results}
@@ -117,8 +126,6 @@ export default function HostPage() {
           />
         ) : view && viewGameId === "motion-duel" ? (
           <DuelStage groups={(groups ?? []).map((g) => ({ id: g.id, view: g.view as unknown as DuelHostView }))} />
-        ) : view && viewGameId === "reaction-tap" ? (
-          <TapStage tap={view as unknown as TapView} />
         ) : (
           <Lobby
             code={code}
@@ -133,7 +140,7 @@ export default function HostPage() {
   );
 }
 
-// ── Lobby: the QR and the game shelf ────────────────────────────────────────
+// ── Lobby: the QR beacon and the game shelf ─────────────────────────────────
 
 function Lobby({
   code,
@@ -149,62 +156,79 @@ function Lobby({
   onStart: (gameId: string) => void;
 }) {
   return (
-    <div className="grid h-full grid-cols-[auto_1fr] gap-12">
-      <div className="flex flex-col items-center gap-6">
-        <div className="bg-bone p-5 hard-shadow-acid">
-          {joinUrl ? <QRCodeSVG value={joinUrl} size={260} fgColor="#141412" bgColor="transparent" level="M" /> : null}
+    <div className="grid h-full grid-cols-[auto_1fr] items-center gap-12">
+      <div className="flex flex-col items-center gap-5">
+        <div className="conic-border glass flex flex-col items-center rounded-[2rem] p-8">
+          <div className="pulse-soft font-display text-xs font-bold uppercase tracking-[0.35em]" style={{ color: "var(--magenta)" }}>
+            Scan to join
+          </div>
+          <div className="relative my-5 rounded-2xl bg-white/95 p-4" style={{ boxShadow: "0 0 60px -10px rgb(139 92 246 / 0.7)" }}>
+            {joinUrl ? <QRCodeSVG value={joinUrl} size={230} fgColor="#140d22" bgColor="transparent" level="M" /> : null}
+            <span className="ring-out absolute -inset-2 rounded-3xl border-2" style={{ borderColor: "rgb(255 61 174 / 0.4)" }} />
+          </div>
+          <div className="font-display gradient-text text-4xl font-black tracking-widest">{code}</div>
+          <div className="mt-2 text-xs" style={{ color: "var(--faint)" }}>
+            point your camera — you&apos;re 10 seconds from the game
+          </div>
         </div>
-        <div className="text-center">
-          <div className="mono-label text-stone">ROOM CODE</div>
-          <div className="display text-7xl text-acid tracking-wider">{code}</div>
-        </div>
-        <div className="mono-label text-stone">{players.length} CONNECTED</div>
-        <div className="flex max-w-[280px] flex-wrap justify-center gap-2">
-          {players.map((p) => (
-            <span key={p.id} className="stamp-in border-2 hairline-bone px-3 py-1 font-mono text-sm">
-              {p.name}
-            </span>
-          ))}
-        </div>
+        <EqBars count={26} height={30} className="w-64 opacity-70" />
       </div>
 
-      <div className="flex min-h-0 flex-col">
-        <h1 className="display text-6xl leading-none">
-          THE ROOM IS QUIET.
-          <br />
-          <span className="type-outline-acid">FIX THAT.</span>
-        </h1>
-        <p className="mt-4 max-w-xl text-lg text-bonedim">
-          Scan the code — no app, no account. Then pick tonight&apos;s first game.
-        </p>
+      <div className="flex min-h-0 flex-col gap-6">
+        <div>
+          <h1 className="font-display text-6xl font-black leading-[1.02]">
+            THE ROOM IS QUIET.
+            <br />
+            <span className="gradient-text glow-violet">FIX THAT.</span>
+          </h1>
+          <p className="mt-3 max-w-xl text-lg" style={{ color: "var(--faint)" }}>
+            No app, no account. Every phone becomes a controller the second it scans in.
+          </p>
+        </div>
 
-        <div className="mt-8 grid max-w-3xl gap-5">
-          {catalog.map((game, i) => {
-            const locked = players.length < game.minPlayers;
+        <div className="flex min-h-[76px] flex-wrap content-start items-start gap-x-5 gap-y-3">
+          {players.map((p, i) => (
+            <div key={p.id} className="pop-in float-y" style={{ animationDelay: `${(i % 5) * 0.08}s, ${(i % 4) * 0.6}s` }}>
+              <Orb id={p.id} name={p.name} size={58} showName />
+            </div>
+          ))}
+          {players.length === 0 ? (
+            <span className="pulse-soft text-sm" style={{ color: "var(--faint)" }}>
+              waiting for the first brave soul…
+            </span>
+          ) : null}
+        </div>
+
+        <div className="grid max-w-3xl gap-4">
+          {catalog.map((game) => {
+            const soon = !PLAYABLE.has(game.id);
+            const locked = soon || players.length < game.minPlayers;
+            const flair = GAME_FLAIR[game.id] ?? { icon: "🎮", grad: "linear-gradient(135deg, var(--violet), var(--cyan))" };
             return (
-              <button
-                key={game.id}
-                type="button"
-                disabled={locked}
-                onClick={() => onStart(game.id)}
-                className="group flex items-center justify-between gap-6 border-2 hairline-bone px-6 py-5 text-left transition-colors hover:border-acid disabled:opacity-40"
-              >
-                <div>
-                  <div className="flex items-baseline gap-4">
-                    <span className="mono-label text-stone">{String(i + 1).padStart(2, "0")}</span>
-                    <span className="display text-4xl group-hover:text-acid">{game.title}</span>
+              <div key={game.id} className={`glass flex items-center gap-5 rounded-3xl p-5 transition-transform ${soon ? "opacity-70" : "hover:scale-[1.015]"}`}>
+                <div
+                  className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-3xl"
+                  style={{ background: flair.grad, boxShadow: "0 8px 30px -8px rgb(0 0 0 / 0.6)" }}
+                >
+                  {flair.icon}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-3">
+                    <span className="font-display text-2xl font-bold">{game.title}</span>
                     {game.id === "motion-duel" ? (
-                      <span className="border border-signal px-2 py-0.5 mono-label" style={{ color: "var(--color-signal)" }}>
-                        PAIRS YOU UP
+                      <span className="glass rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ color: "var(--magenta)" }}>
+                        pairs you with a stranger
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 font-mono text-sm text-bonedim">{game.tagline}</p>
+                  <p className="mt-0.5 truncate text-sm" style={{ color: "var(--faint)" }}>
+                    {game.tagline}
+                  </p>
                 </div>
-                <span className="display text-3xl text-acid">
-                  {locked ? `NEEDS ${game.minPlayers}+` : "START →"}
-                </span>
-              </button>
+                <GlowBtn tone={locked ? "ghost" : "lime"} disabled={locked} onClick={() => onStart(game.id)} className="shrink-0 px-7 py-3.5 text-lg">
+                  {soon ? "in the lab 🧪" : locked ? `needs ${game.minPlayers}+` : "START ⚡"}
+                </GlowBtn>
+              </div>
             );
           })}
         </div>
@@ -213,86 +237,13 @@ function Lobby({
   );
 }
 
-// ── Reaction Tap stage ──────────────────────────────────────────────────────
-
-function TapStage({ tap }: { tap: TapView }) {
-  // Local 10fps clock purely for rendering the arming countdown; the server
-  // remains the only authority for when the round actually flips.
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (tap.phase !== "arming") return;
-    const id = setInterval(() => setNow(Date.now()), 100);
-    return () => clearInterval(id);
-  }, [tap.phase]);
-
-  const countdown = tap.armingEndsAt ? Math.max(0, Math.ceil((tap.armingEndsAt - now) / 1000)) : null;
-
-  return (
-    <div className="grid h-full grid-cols-[1fr_360px] gap-10">
-      <section className="relative flex flex-col items-center justify-center border-2 hairline-bone scanlines">
-        <div className="mono-label absolute left-5 top-4 text-stone">
-          ROUND {tap.round} / {tap.totalRounds}
-        </div>
-
-        {tap.phase === "arming" ? (
-          <>
-            <div className="mono-label text-stone">GET READY</div>
-            <div className="display text-[14rem] leading-none text-bone">{countdown ?? 3}</div>
-          </>
-        ) : tap.phase === "waiting" ? (
-          <>
-            <div className="mono-label text-signal blink">DO NOT TAP YET</div>
-            <div className="display text-[10rem] leading-none type-outline-acid">HOLD</div>
-          </>
-        ) : tap.phase === "live" ? (
-          <div className="go-flare flex flex-col items-center">
-            <div className="display text-[18rem] leading-none text-acid">TAP</div>
-            <div className="mono-label text-bone">{tap.tapsIn} / {tap.playerCount} IN</div>
-          </div>
-        ) : tap.phase === "reveal" ? (
-          <div className="stamp-in flex flex-col items-center text-center">
-            <div className="mono-label text-stone">FASTEST THUMB</div>
-            <div className="display text-8xl text-acid">{tap.lastRound?.winner?.name ?? "NOBODY"}</div>
-            {tap.lastRound?.winner ? (
-              <div className="mt-2 font-mono text-2xl text-bone">{tap.lastRound.winner.reactionMs}ms</div>
-            ) : null}
-            {tap.lastRound?.falseStarts.length ? (
-              <div className="mono-label mt-4 text-signal">
-                {tap.lastRound.falseStarts.length} JUMPED THE GUN
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="display text-8xl text-acid">MATCH OVER</div>
-        )}
-      </section>
-
-      <aside className="flex min-h-0 flex-col border-2 hairline-bone p-5">
-        <div className="mono-label text-stone">LEADERBOARD</div>
-        <ol className="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
-          {tap.board.map((row, i) => (
-            <li key={row.playerId} className="flex items-baseline justify-between border-b hairline-bone pb-1">
-              <span className="truncate font-mono text-sm">
-                <span className="text-stone">{String(i + 1).padStart(2, "0")}</span> {row.name}
-                {row.falseStart ? <span className="ml-2 text-signal">✕</span> : null}
-              </span>
-              <span className="display text-xl text-acid">{row.score}</span>
-            </li>
-          ))}
-        </ol>
-      </aside>
-    </div>
-  );
-}
-
-// ── Motion Duel stage: every duel in the room, live ─────────────────────────
+// ── Motion Duel stage ───────────────────────────────────────────────────────
 
 const PHASE_BANNER: Record<DuelHostView["phase"], [string, string]> = {
-  find: ["FIND YOUR OPPONENT", "PHONES ARE GLOWING — MATCH THE COLOUR"],
-  steady: ["HOLD STILL", "MOVE AND YOU'RE OUT. THE LINE IS PULSING."],
-  result: ["HANDS REVEALED", "WINNERS KEPT FROZEN. LOSERS FLINCHED."],
-  complete: ["DUELS OVER", "SCORES ARE IN"],
+  find: ["FIND YOUR OPPONENT 📳", "phones are glowing — match the colour"],
+  steady: ["HOLD. STILL. 🫨", "move and you're out — the line is pulsing"],
+  result: ["HANDS REVEALED", "steady hands won. flinchers know who they are."],
+  complete: ["DUELS OVER", "scores are in"],
 };
 
 function DuelStage({ groups }: { groups: { id: string; view: DuelHostView }[] }) {
@@ -303,10 +254,16 @@ function DuelStage({ groups }: { groups: { id: string; view: DuelHostView }[] })
     <div className="flex h-full flex-col gap-6">
       <div className="flex items-end justify-between">
         <div>
-          <div className="mono-label text-stone">MOTION DUEL — {groups.length} DUEL{groups.length === 1 ? "" : "S"}</div>
-          <h2 className={`display text-7xl leading-none ${phase === "steady" ? "text-signal" : "text-bone"}`}>{title}</h2>
+          <div className="font-display text-xs font-bold uppercase tracking-[0.3em]" style={{ color: "var(--faint)" }}>
+            Motion Duel — {groups.length} duel{groups.length === 1 ? "" : "s"} running
+          </div>
+          <h2 className={`font-display text-6xl font-black leading-tight ${phase === "steady" ? "glow-magenta" : "gradient-text"}`} style={phase === "steady" ? { color: "var(--magenta)" } : undefined}>
+            {title}
+          </h2>
         </div>
-        <div className="mono-label pb-1 text-stone">{sub}</div>
+        <div className="pb-2 text-sm font-semibold" style={{ color: "var(--faint)" }}>
+          {sub}
+        </div>
       </div>
 
       <div
@@ -325,45 +282,59 @@ function DuelCard({ view }: { view: DuelHostView }) {
   const maxWobble = Math.max(60, ...view.duellists.map((d) => d.wobble));
 
   return (
-    <div className="relative border-2 hairline-bone" style={{ borderTop: `10px solid ${view.colour}` }}>
-      <div className="flex flex-col gap-3 p-5">
+    <div
+      className="glass rounded-[1.6rem] p-5"
+      style={{ border: `1px solid ${view.colour}55`, boxShadow: `0 0 44px -14px ${view.colour}aa` }}
+    >
+      <div className="mb-3 flex items-center gap-2">
+        <span className="h-3.5 w-3.5 rounded-full" style={{ background: view.colour, boxShadow: `0 0 12px ${view.colour}` }} />
+        <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--faint)" }}>
+          duel colour
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-4">
         {view.duellists.map((d) => {
           const isWinner = view.phase !== "steady" && view.winner === d.name;
           return (
-            <div key={d.playerId} className={d.out && !isWinner ? "opacity-50" : ""}>
-              <div className="flex items-baseline justify-between">
-                <span className="display truncate text-3xl">
-                  {d.name}
-                  {isWinner ? <span className="ml-3 text-acid">★</span> : null}
-                </span>
-                {d.out ? (
-                  <span className="stamp-in border-2 border-signal px-2 py-0.5 mono-label" style={{ color: "var(--color-signal)" }}>
-                    OUT
-                  </span>
-                ) : (
-                  <span className="mono-label text-stone">{d.score} PTS</span>
-                )}
+            <div key={d.playerId} className={`flex items-center gap-3 ${d.out && !isWinner ? "opacity-45" : ""}`}>
+              <div className="relative">
+                <Orb id={d.playerId} size={46} />
+                {isWinner ? <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xl">👑</span> : null}
               </div>
-              {/* cumulative wobble: the truth-teller when nobody flinches */}
-              <div className="mt-1.5 h-2 w-full border hairline-bone">
-                <div
-                  className="h-full transition-[width] duration-150"
-                  style={{
-                    width: `${Math.min(100, (d.wobble / maxWobble) * 100)}%`,
-                    background: d.out ? "var(--color-signal)" : "var(--color-acid)",
-                  }}
-                />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="truncate font-display font-bold">{d.name}</span>
+                  {d.out ? (
+                    <span className="pop-in text-xs font-bold" style={{ color: "var(--coral)" }}>
+                      FLINCHED 💥
+                    </span>
+                  ) : (
+                    <span className="font-display text-sm font-bold" style={{ color: "var(--lime)" }}>
+                      {d.score}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1.5 h-2.5 overflow-hidden rounded-full" style={{ background: "rgb(255 255 255 / 0.08)" }}>
+                  <div
+                    className="h-full rounded-full transition-[width] duration-150"
+                    style={{
+                      width: `${Math.min(100, (d.wobble / maxWobble) * 100)}%`,
+                      background: d.out ? "var(--coral)" : "linear-gradient(90deg, var(--cyan), var(--magenta))",
+                    }}
+                  />
+                </div>
               </div>
             </div>
           );
         })}
-
-        {view.phase === "result" ? (
-          <div className="stamp-in mt-1 self-center border-2 border-acid px-3 py-1 mono-label text-acid">
-            {view.winner ? `${view.winner.toUpperCase()} TAKES IT` : "DEAD HEAT"}
-          </div>
-        ) : null}
       </div>
+
+      {view.phase === "result" ? (
+        <div className="pop-in mt-4 rounded-full px-4 py-1.5 text-center font-display text-sm font-bold" style={{ background: "rgb(200 255 62 / 0.15)", color: "var(--lime)" }}>
+          {view.winner ? `${view.winner} takes it ⚡` : "dead heat 🤝"}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -387,10 +358,10 @@ function Podium({
     // Loaded on demand so the projector bundle stays small until it's needed.
     void import("canvas-confetti").then(({ default: confetti }) => {
       confetti({
-        particleCount: 160,
-        spread: 100,
+        particleCount: 180,
+        spread: 110,
         origin: { y: 0.4 },
-        colors: ["#c6ff32", "#e8e4d8", "#ff4b1f"],
+        colors: ["#8b5cf6", "#ff3dae", "#c8ff3e", "#3ee7ff", "#ffb03a"],
         disableForReducedMotion: true,
       });
     });
@@ -398,27 +369,42 @@ function Podium({
 
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
-      <div className="mono-label text-stone">RESULTS</div>
-      <h2 className="stamp-in display mt-2 max-w-4xl text-7xl text-acid">{results.headline}</h2>
+      <div className="font-display text-xs font-bold uppercase tracking-[0.35em]" style={{ color: "var(--faint)" }}>
+        Results
+      </div>
+      <h2 className="slam-in font-display gradient-text mt-3 max-w-4xl text-6xl font-black leading-tight">
+        {results.headline} 🏆
+      </h2>
 
       <ol className="mt-10 w-full max-w-2xl">
         {results.scores.slice(0, 5).map((row, i) => (
-          <li key={row.playerId} className="flex items-baseline justify-between border-b hairline-bone py-2">
-            <span className="display text-3xl">
-              <span className="text-stone">{i + 1}</span> {row.name}
+          <li
+            key={row.playerId}
+            className="pop-in flex items-center gap-4 border-b py-2.5"
+            style={{ borderColor: "rgb(255 255 255 / 0.1)", animationDelay: `${0.2 + i * 0.12}s` }}
+          >
+            <span className="font-display w-8 text-right text-2xl font-black" style={{ color: i === 0 ? "var(--lime)" : "var(--faint)" }}>
+              {i + 1}
             </span>
-            <span className="display text-3xl text-acid">{row.points}</span>
+            <Orb id={row.playerId} size={44} />
+            <span className="flex-1 text-left font-display text-2xl font-bold">
+              {row.name}
+              {i === 0 ? " 👑" : ""}
+            </span>
+            <span className="font-display text-2xl font-black" style={{ color: "var(--lime)" }}>
+              {row.points}
+            </span>
           </li>
         ))}
       </ol>
 
-      <div className="mt-10 flex items-center gap-5">
-        <button type="button" onClick={onAgain} className="bg-acid px-8 py-3 display text-2xl text-ink hard-shadow-bone">
-          RUN IT BACK →
-        </button>
-        <button type="button" onClick={onLobby} className="border-2 hairline-bone px-8 py-3 display text-2xl text-bone">
-          GAME SHELF
-        </button>
+      <div className="mt-10 flex items-center gap-4">
+        <GlowBtn tone="hot" onClick={onAgain} className="px-9 py-4 text-xl">
+          RUN IT BACK 🔁
+        </GlowBtn>
+        <GlowBtn tone="ghost" onClick={onLobby} className="px-9 py-4 text-xl">
+          game shelf
+        </GlowBtn>
       </div>
     </div>
   );

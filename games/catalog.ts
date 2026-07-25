@@ -1,7 +1,6 @@
 import { crossfire } from "./crossfire";
 import { motionDuel } from "./motion-duel";
 import { pairSprint } from "./pair-sprint";
-import { reactionTap } from "./reaction-tap";
 import type { MiniGame, MiniGameMeta } from "./types";
 
 // The session layer holds games without knowing their state shape.
@@ -13,12 +12,12 @@ export type AnyMiniGame = MiniGame<any>;
  * line here - nothing in the transport, the Durable Object, or the lobby.
  */
 /**
- * Ordered as a host would run a night: a fast warm-up that needs no
- * explanation, then the two modes that put strangers together, then the one
- * that gives the whole room something to react to.
+ * Ordered as a host would run a night: the two modes that put strangers
+ * together, then the one that gives the whole room something to react to.
+ * Every game here has to force at least two specific people to interact —
+ * a solo-playable leaderboard doesn't belong (Reaction Tap was cut for this).
  */
 export const GAME_CATALOG: readonly AnyMiniGame[] = [
-  reactionTap,
   motionDuel,
   pairSprint,
   crossfire,

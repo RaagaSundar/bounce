@@ -61,16 +61,17 @@ holding its own WebSocket to the same Durable Object. Nothing about it is
 simulated — it exists because a two-surface product is invisible until you have
 two devices in your hands.
 
-## Design language — "Ink & Acid"
+## Design language — "Arcade"
 
-Event-ephemera system: the host screen is a stage LED board in a dark venue
-(ink + acid dot-matrix WebGL floor); the phone is a *printed* object — laminate
-pass, ballot stubs, rubber stamps, till receipts on bone paper. Anton for poster
-type, Space Mono for metadata, Archivo for body. Four colors total (ink
-`#141412`, bone `#e8e4d8`, acid `#c6ff32`, signal `#ff4b1f` + cobalt for
-stickers), film grain everywhere, hard offset shadows instead of glow,
-difference-blend wordmark on the landing seam. Avatars are generated SVG sticker
-badges (no emoji). No neon-gradient-on-dark.
+The original Bounce look, kept because it stops thumbs: deep violet space
+(`#0a0612`) with drifting starfield and gradient blobs, glassmorphic panels,
+neon glow on everything that matters. Unbounded for display type, Space Grotesk
+for body. Accents: violet `#8b5cf6`, magenta `#ff3dae`, lime `#c8ff3e`, cyan
+`#3ee7ff`, amber `#ffb03a`. Players are glowing emoji orbs derived
+deterministically from their id (`app/live/arcade.tsx`), so every screen renders
+the same creature for the same person with nothing stored. The skin lives at the
+end of `app/globals.css` as `.skin-arcade`; the earlier "Ink & Acid" experiment
+(`.skin-ink-acid`) remains in the file but no live screen uses it.
 
 ## Status
 
@@ -79,6 +80,11 @@ engine (`db/game-store.ts`, its REST routes, and the `src/` demo it was ported
 from) has been deleted — D1 is now purely the archive, written when a game
 finishes and read back via `GET /api/rooms/:code/history`.
 
-Two minigames ship: **Reaction Tap** (room scope) and **Motion Duel** (party
-scope — pairs strangers who have not met and makes them duel). Adding another is
-one file in `games/` plus a line in `games/catalog.ts`.
+One minigame is fully wired end-to-end: **Motion Duel** (party scope — pairs
+strangers who have not met and makes them duel). **Pair Sprint** and
+**Crossfire** exist as game modules in `games/catalog.ts` but don't have
+host/play UI yet, so starting them currently falls back to the lobby view.
+Reaction Tap was cut — it worked solo and never put two specific people in
+front of each other, which defeats the point of the product. Every game in the
+catalog has to force real interaction between people. Adding one is one file in
+`games/` plus a line in `games/catalog.ts`.

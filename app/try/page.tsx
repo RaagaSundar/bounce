@@ -33,25 +33,27 @@ export default function TryPage() {
     setCode(newCode());
   }, []);
 
-  if (!code) return <div className="skin-ink-acid grain" />;
+  if (!code) return <div className="skin-arcade" />;
 
   return (
-    <div className="skin-ink-acid grain flex flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b hairline-bone px-6 py-3">
+    <div className="skin-arcade flex flex-col">
+      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-6 py-3" style={{ borderBottom: "1px solid rgb(255 255 255 / 0.1)" }}>
         <div className="flex items-baseline gap-4">
-          <Link href="/" className="display text-2xl text-acid">
+          <Link href="/" className="font-display gradient-text text-2xl font-black tracking-tight">
             BOUNCE
           </Link>
-          <span className="mono-label text-stone">SOLO DEMO — ROOM {code}</span>
+          <span className="font-display text-xs font-bold uppercase tracking-[0.25em]" style={{ color: "var(--faint)" }}>
+            solo demo — room {code}
+          </span>
         </div>
-        <p className="font-mono text-xs text-bonedim">
-          Press <span className="text-acid">START</span> on Reaction Tap, then tap the phone when
-          it flips.
+        <p className="text-xs font-semibold" style={{ color: "var(--faint)" }}>
+          Press <span style={{ color: "var(--lime)" }}>START</span> on a game, then play it on the phone pane.
         </p>
         <button
           type="button"
           onClick={() => setCode(newCode())}
-          className="border-2 hairline-bone px-4 py-1.5 mono-label text-bone transition-colors hover:border-acid"
+          className="glass rounded-full px-4 py-1.5 text-xs font-bold transition-transform hover:scale-105"
+          style={{ color: "var(--milk)" }}
         >
           FRESH ROOM ⟳
         </button>
@@ -89,10 +91,13 @@ function Pane({
   children: React.ReactNode;
 }) {
   return (
-    <section
-      className={`flex min-h-0 flex-col border-2 hairline-bone ${grow ? "flex-[3]" : "flex-1"}`}
-    >
-      <div className="mono-label border-b hairline-bone px-3 py-2 text-stone">{label}</div>
+    <section className={`glass flex min-h-0 flex-col overflow-hidden rounded-2xl ${grow ? "flex-[3]" : "flex-1"}`}>
+      <div
+        className="px-3 py-2 font-display text-[11px] font-bold uppercase tracking-[0.25em]"
+        style={{ color: "var(--faint)", borderBottom: "1px solid rgb(255 255 255 / 0.1)" }}
+      >
+        {label}
+      </div>
       {children}
     </section>
   );
