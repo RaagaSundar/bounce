@@ -54,10 +54,16 @@ function writeStored(role: string, code: string, token: string) {
   }
 }
 
+export type GroupView = { id: string; view: Record<string, unknown> };
+
 export function useRoomSocket({ code, role, name }: Options) {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [room, setRoom] = useState<RoomView | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
+  /** Which game the current `view` belongs to, so screens can route on it. */
+  const [viewGameId, setViewGameId] = useState<string | null>(null);
+  /** Party-scope games only, host only: one view per sub-group. */
+  const [groups, setGroups] = useState<GroupView[] | null>(null);
   const [results, setResults] = useState<Results | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<{ playerId: string; name: string } | null>(null);
@@ -124,6 +130,8 @@ export function useRoomSocket({ code, role, name }: Options) {
             break;
           case "view":
             setView(message.view as Record<string, unknown>);
+            setViewGameId(typeof message.gameId === "string" ? message.gameId : null);
+            setGroups(Array.isArray(message.groups) ? (message.groups as GroupView[]) : null);
             setResults(null);
             break;
           case "results":
@@ -131,6 +139,9 @@ export function useRoomSocket({ code, role, name }: Options) {
             break;
           case "game:ended":
             setView(null);
+            setViewGameId(null);
+            setGroups(null);
+            setResults(null);
             break;
           case "error":
             setError(String(message.error));
@@ -160,7 +171,7 @@ export function useRoomSocket({ code, role, name }: Options) {
     };
   }, [code, role, name, send]);
 
-  return { status, room, view, results, error, me, send, setError };
+  return { status, room, view, viewGameId, groups, results, error, me, send, setError };
 }
 
 /** Short, sharp haptic. No-op where the Vibration API is unsupported. */

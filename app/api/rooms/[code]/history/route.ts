@@ -1,5 +1,5 @@
 import { getD1 } from "../../../../../db/index";
-import { normalizeRoomCode } from "../../../../../db/game-store";
+import { normalizeRoomCode } from "../../../../../db/room-code";
 import { json, roomCodeFrom, routeError } from "../../../_game";
 
 /**

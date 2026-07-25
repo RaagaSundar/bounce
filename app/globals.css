@@ -22,8 +22,8 @@
   --aqua: #5be7e0;
   --line: rgba(255, 249, 237, 0.16);
   --line-strong: rgba(255, 249, 237, 0.3);
-  --font-display: var(--font-geist-sans), Arial, sans-serif;
-  --font-mono-game: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: Arial, sans-serif;
+  --font-mono-game: ui-monospace, monospace;
 }
 
 * {
@@ -2007,9 +2007,8 @@ summary:focus-visible {
 
 /* Deliberately NOT --font-display / --font-mono / --font-body: the legacy
    stylesheet above already defines those at :root, Tailwind hoists @theme
-   above it, so the legacy values win. Worse, its --font-display points at an
-   undefined --font-geist-sans, which makes the declaration invalid and silently
-   inherits the body font. Scoped literal stacks avoid the collision entirely. */
+   above it, so the legacy values win. Scoped literal stacks avoid the
+   collision entirely. */
 .skin-ink-acid {
   position: fixed;
   inset: 0;
