@@ -33,14 +33,19 @@ const MAX_HP = 100;
  * moving at MOVE_SPEED simply walks out of - a strafing target was untouchable.
  */
 const BULLET_SPEED = 1500; // units/sec
-const BULLET_R = 9;
+/**
+ * Generous on purpose. This is played on a phone by someone standing up in a
+ * loud room, so shots should reward pointing roughly the right way rather than
+ * demanding precision.
+ */
+const BULLET_R = 15;
 const BULLET_DAMAGE = 25;
 /**
  * Has to comfortably cross the arena. At 620 two players on opposite sides were
  * 787 units apart, so every shot died in mid-air and firing felt broken.
  */
 const BULLET_RANGE = 950;
-const FIRE_COOLDOWN_MS = 340;
+const FIRE_COOLDOWN_MS = 260;
 
 const KILL_POINTS = 300;
 const DAMAGE_POINTS_PER_HIT = 40;
