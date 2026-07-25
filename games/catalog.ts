@@ -1,3 +1,4 @@
+import { motionDuel } from "./motion-duel";
 import { reactionTap } from "./reaction-tap";
 import type { MiniGame, MiniGameMeta } from "./types";
 
@@ -9,7 +10,7 @@ export type AnyMiniGame = MiniGame<any>;
  * Every playable minigame. Adding one means adding a file next to this and a
  * line here - nothing in the transport, the Durable Object, or the lobby.
  */
-export const GAME_CATALOG: readonly AnyMiniGame[] = [reactionTap];
+export const GAME_CATALOG: readonly AnyMiniGame[] = [reactionTap, motionDuel];
 
 export function getGame(id: string): AnyMiniGame | null {
   return GAME_CATALOG.find((game) => game.id === id) ?? null;

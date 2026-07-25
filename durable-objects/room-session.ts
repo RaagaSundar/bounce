@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 import { catalogSummary, getGame, type AnyMiniGame } from "../games/catalog";
+import { groupPairKeys, makeGroups } from "../games/pairing";
 import type { SessionPlayer } from "../games/types";
 
 /**
@@ -23,7 +24,12 @@ type RosterEntry = SessionPlayer & { token: string; joinedAt: number };
 
 type Attachment = { role: "host" } | { role: "player"; playerId: string };
 
-type ActiveGame = { id: string; state: unknown };
+/**
+ * A "room" scope game runs one instance for everybody. A "party" scope game
+ * runs one independent instance per sub-group, so pairs duel privately.
+ */
+type GameInstance = { id: string; playerIds: string[]; state: unknown };
+type ActiveGame = { id: string; instances: GameInstance[] };
 
 type Env = { DB?: D1Database };
 
@@ -32,6 +38,8 @@ export class RoomSession extends DurableObject<Env> {
   private hostToken: string | null = null;
   private roster: Record<string, RosterEntry> = {};
   private game: ActiveGame | null = null;
+  /** Every pairing seen this event, so nobody gets matched twice. */
+  private metBefore = new Set<string>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -42,6 +50,7 @@ export class RoomSession extends DurableObject<Env> {
       this.hostToken = (await ctx.storage.get<string>("hostToken")) ?? null;
       this.roster = (await ctx.storage.get<Record<string, RosterEntry>>("roster")) ?? {};
       this.game = (await ctx.storage.get<ActiveGame>("game")) ?? null;
+      this.metBefore = new Set((await ctx.storage.get<string[]>("metBefore")) ?? []);
     });
   }
 
@@ -195,15 +204,17 @@ export class RoomSession extends DurableObject<Env> {
     if (!this.game) throw new SessionError("No game is running.");
 
     const game = this.requireGame(this.game.id);
+    const instance = this.instanceFor(who.playerId);
+    if (!instance) throw new SessionError("You are not in this round.");
+
     // Date.now() here is the server's arrival time. A client cannot claim when
     // it acted, only that it did.
-    const next = game.applyInput(this.game.state, who.playerId, message.input, Date.now());
+    const next = game.applyInput(instance.state, who.playerId, message.input, Date.now());
+    if (next === instance.state) return;
 
-    if (next !== this.game.state) {
-      this.game = { ...this.game, state: next };
-      await this.persistGame();
-      this.broadcastGame();
-    }
+    instance.state = next;
+    await this.persistGame();
+    this.broadcastGameFor(instance);
   }
 
   private async onHostStart(ws: WebSocket, message: Record<string, unknown>) {
@@ -219,12 +230,34 @@ export class RoomSession extends DurableObject<Env> {
     }
 
     const now = Date.now();
+    const byId = new Map(players.map((p) => [p.id, p]));
+
+    // "party" scope splits the roster into sub-groups that have not met yet;
+    // "room" scope is simply one group containing everybody.
+    const groups =
+      game.scope === "party"
+        ? makeGroups(players.map((p) => p.id), this.metBefore, Math.random)
+        : [players.map((p) => p.id)];
+
     this.game = {
       id: game.id,
-      state: game.createInitialState({ players, now, seed: (Math.random() * 2 ** 32) >>> 0 }),
+      instances: groups.map((playerIds, index) => ({
+        id: `${game.id}-${index}`,
+        playerIds,
+        state: game.createInitialState({
+          players: playerIds.map((id) => byId.get(id)).filter(Boolean) as SessionPlayer[],
+          now,
+          seed: (Math.random() * 2 ** 32) >>> 0,
+        }),
+      })),
     };
-    await this.persistGame();
 
+    if (game.scope === "party") {
+      for (const key of groupPairKeys(groups)) this.metBefore.add(key);
+      await this.ctx.storage.put("metBefore", [...this.metBefore]);
+    }
+
+    await this.persistGame();
     this.broadcastGame();
     await this.ctx.storage.setAlarm(now + TICK_MS);
   }
@@ -244,16 +277,25 @@ export class RoomSession extends DurableObject<Env> {
 
     const game = this.requireGame(this.game.id);
     const now = Date.now();
-    const next = game.tick(this.game.state, now);
+    let changed = false;
 
-    if (next !== this.game.state) {
-      this.game = { ...this.game, state: next };
-      await this.persistGame();
-      this.broadcastGame();
+    for (const instance of this.game.instances) {
+      const next = game.tick(instance.state, now);
+      // Same reference means nothing happened, so no frame is broadcast.
+      if (next === instance.state) continue;
+      instance.state = next;
+      changed = true;
+      this.broadcastGameFor(instance);
     }
 
-    if (game.isComplete(next)) {
-      this.broadcast({ type: "results", gameId: game.id, results: game.getResults(next) });
+    if (changed) await this.persistGame();
+
+    if (this.game.instances.every((i) => game.isComplete(i.state))) {
+      this.broadcast({
+        type: "results",
+        gameId: game.id,
+        results: mergeResults(this.game.instances.map((i) => game.getResults(i.state))),
+      });
       this.game = null;
       await this.ctx.storage.delete("game");
       this.broadcastRoom();
@@ -299,6 +341,10 @@ export class RoomSession extends DurableObject<Env> {
     this.broadcast(this.roomPayload());
   }
 
+  private instanceFor(playerId: string): GameInstance | null {
+    return this.game?.instances.find((i) => i.playerIds.includes(playerId)) ?? null;
+  }
+
   /** Sends each socket only the view it is entitled to. */
   private sendGameView(ws: WebSocket) {
     if (!this.game) return;
@@ -306,14 +352,35 @@ export class RoomSession extends DurableObject<Env> {
     const who = attachmentOf(ws);
     if (!who) return;
 
+    if (who.role === "host") {
+      // The projector sees every sub-group; a phone only ever sees its own.
+      send(ws, {
+        type: "view",
+        gameId: game.id,
+        scope: game.scope,
+        view: game.getHostView(this.game.instances[0].state),
+        groups: this.game.instances.map((i) => ({ id: i.id, view: game.getHostView(i.state) })),
+      });
+      return;
+    }
+
+    const instance = this.instanceFor(who.playerId);
+    if (!instance) return;
     send(ws, {
       type: "view",
       gameId: game.id,
-      view:
-        who.role === "host"
-          ? game.getHostView(this.game.state)
-          : game.getViewForPlayer(this.game.state, who.playerId),
+      scope: game.scope,
+      view: game.getViewForPlayer(instance.state, who.playerId),
     });
+  }
+
+  /** Only wakes the sockets that belong to the instance that changed. */
+  private broadcastGameFor(instance: GameInstance) {
+    for (const ws of this.ctx.getWebSockets()) {
+      const who = attachmentOf(ws);
+      if (!who) continue;
+      if (who.role === "host" || instance.playerIds.includes(who.playerId)) this.sendGameView(ws);
+    }
   }
 
   private broadcastGame() {
@@ -328,6 +395,14 @@ export class RoomSession extends DurableObject<Env> {
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 class SessionError extends Error {}
+
+/** Folds every sub-group's results into one room-wide leaderboard. */
+function mergeResults(all: { scores: { playerId: string; name: string; points: number }[]; headline: string }[]) {
+  const scores = all
+    .flatMap((r) => r.scores)
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+  return { scores, headline: all[0]?.headline ?? "Round over" };
+}
 
 function send(ws: WebSocket, payload: unknown) {
   try {
