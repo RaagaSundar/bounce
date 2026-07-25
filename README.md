@@ -61,6 +61,22 @@ holding its own WebSocket to the same Durable Object. Nothing about it is
 simulated — it exists because a two-surface product is invisible until you have
 two devices in your hands.
 
+## Measured, not claimed
+
+Against a room running the real Durable Object:
+
+| | |
+|---|---|
+| Concurrent sockets in one room | **201** (200 players + host), zero errors |
+| Round trip, p50 / p95 under that load | **4.3ms / 44ms** |
+| Sub-groups formed from 200 players | **100 pairs**, all served their own private view |
+| Fan-out to all 200 on game start | **692ms** |
+| Previous architecture's floor | 1300ms HTTP polling |
+
+Inputs never broadcast per-message: they mark their instance dirty and a fixed
+120ms tick flushes at most one frame. 400 inputs pushed as fast as a socket
+allowed produced **one** frame back, not 400.
+
 ## Design language — "Arcade"
 
 The original Bounce look, kept because it stops thumbs: deep violet space
