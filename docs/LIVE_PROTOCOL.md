@@ -54,6 +54,38 @@ Persist them under `bounce:host:{code}` and `bounce:player:{code}` and resend on
 reconnect. A dropped phone that resends its token returns as the **same player
 with the same score**, not a duplicate.
 
+## Send rate and flush timing
+
+**Read this before writing an input loop.**
+
+Inputs are applied immediately but are **not** broadcast or persisted on
+arrival. They mark their instance dirty, and the fixed ~120ms server tick
+flushes at most one frame per instance. A motion game streaming samples per
+player would otherwise mean thousands of storage writes and fan-out sends per
+second at event scale.
+
+Practical consequences:
+
+- **You get roughly 8 `view` frames a second, maximum.** Sending input faster
+  than that does not produce more frames. Interpolate or animate locally
+  between frames rather than expecting one per input.
+- **Sending faster than 30 inputs/second/player is pointless** — a sliding
+  window drops the excess silently, with no error, to stop one client flooding
+  a room. Sample motion at ~10–20Hz.
+- Worst-case added latency from an input to its frame is one tick (~120ms),
+  well inside the perceptual budget.
+- When nothing changes, nothing is sent, so an idle room can hibernate.
+
+## Disconnects
+
+Closing the last socket for a player triggers the game's `onPlayerLeft`, if it
+implements one. A `motion-duel` opponent who walks away forfeits immediately
+rather than leaving their partner holding a phone still for the full timer; a
+`reaction-tap` player stops being counted in "has everyone tapped?".
+
+Their roster entry and banked score survive. Reconnecting with the stored
+`playerToken` restores the same identity and score - it is not a new player.
+
 ## Views
 
 `getViewForPlayer` is the only path state reaches a phone, so a player cannot
@@ -138,6 +170,29 @@ ws.onmessage = (e) => {
 
 `app/live/useRoomSocket.ts` is a working reference implementation with
 reconnect-with-backoff already handled.
+
+## Recap / history (REST)
+
+Finished games are archived to D1 when they complete. Live play is the socket's
+job; the archive is REST, because nothing here is needed moment-to-moment.
+
+```
+GET /api/rooms/:code/history  ->  { sessions: [...] }
+```
+
+Newest first, capped at 50:
+
+```ts
+{
+  id, gameId, scope,
+  playerCount, groupCount,
+  startedAt, endedAt,
+  results: { headline, scores: [{ playerId, name, points }] },
+}
+```
+
+A room that has never finished a game returns `{ sessions: [] }` with `200`,
+not an error — so an event recap screen can call it unconditionally.
 
 ## Guarantees
 

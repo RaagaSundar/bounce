@@ -58,6 +58,34 @@ export const gameActions = sqliteTable(
 );
 
 /**
+ * The archive. Live gameplay is owned by the RoomSession Durable Object, which
+ * is the strongly-consistent authority for what is happening right now; this
+ * table is what survives once the room goes quiet, and what cross-event
+ * questions get asked against later.
+ *
+ * `results` is JSON on purpose: every minigame reports a different shape, and
+ * normalising that would mean a migration per game.
+ */
+export const gameSessions = sqliteTable(
+  "game_sessions",
+  {
+    id: text("id").primaryKey(),
+    roomCode: text("room_code").notNull(),
+    gameId: text("game_id").notNull(),
+    scope: text("scope").notNull(),
+    playerCount: integer("player_count").notNull(),
+    groupCount: integer("group_count").notNull(),
+    startedAt: integer("started_at").notNull(),
+    endedAt: integer("ended_at").notNull(),
+    results: text("results").notNull(),
+  },
+  (table) => [
+    index("game_sessions_room_idx").on(table.roomCode, table.endedAt),
+    index("game_sessions_game_idx").on(table.gameId, table.endedAt),
+  ],
+);
+
+/**
  * Runtime initialization keeps `vinext dev` usable without a separate D1
  * migration command. The checked-in Drizzle migration remains the production
  * source of truth.
@@ -100,4 +128,17 @@ export const d1SchemaStatements = [
   )`,
   "CREATE UNIQUE INDEX IF NOT EXISTS game_actions_player_round_unique ON game_actions (player_id, round)",
   "CREATE INDEX IF NOT EXISTS game_actions_room_round_idx ON game_actions (room_id, round)",
+  `CREATE TABLE IF NOT EXISTS game_sessions (
+    id TEXT PRIMARY KEY NOT NULL,
+    room_code TEXT NOT NULL,
+    game_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    player_count INTEGER NOT NULL,
+    group_count INTEGER NOT NULL,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER NOT NULL,
+    results TEXT NOT NULL
+  )`,
+  "CREATE INDEX IF NOT EXISTS game_sessions_room_idx ON game_sessions (room_code, ended_at)",
+  "CREATE INDEX IF NOT EXISTS game_sessions_game_idx ON game_sessions (game_id, ended_at)",
 ] as const;

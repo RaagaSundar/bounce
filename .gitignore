@@ -36,6 +36,7 @@ dist-ssr
 
 # TypeScript
 next-env.d.ts
+*.tsbuildinfo
 
 # Tooling scratch
 /outputs/

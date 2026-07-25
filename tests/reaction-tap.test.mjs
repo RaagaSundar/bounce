@@ -167,3 +167,27 @@ test("a full match runs three rounds and then completes", () => {
   );
   assert.match(results.headline, /Ada/);
 });
+
+test("a player who leaves does not hold up the round", () => {
+  const { state: live } = advanceUntil(setup(), (s) => s.phase === "live");
+
+  // p3 shuts their tab; p1 and p2 tap. The round should settle immediately
+  // rather than waiting out the full live timeout on someone who has gone.
+  const gone = reactionTap.onPlayerLeft(live, "p3", live.goAt + 10);
+  let state = reactionTap.applyInput(gone, "p1", { type: "tap" }, live.goAt + 150);
+  state = reactionTap.applyInput(state, "p2", { type: "tap" }, live.goAt + 200);
+
+  const settled = reactionTap.tick(state, live.goAt + 250);
+  assert.equal(settled.phase, "reveal", "should not wait on the absent player");
+});
+
+test("an absent player keeps their banked score", () => {
+  const { state: live } = advanceUntil(setup(), (s) => s.phase === "live");
+  const tapped = reactionTap.applyInput(live, "p3", { type: "tap" }, live.goAt + 120);
+  const settled = reactionTap.tick(tapped, live.goAt + 5000);
+  const gone = reactionTap.onPlayerLeft(settled, "p3", live.goAt + 6000);
+
+  const results = reactionTap.getResults(gone);
+  const p3 = results.scores.find((s) => s.playerId === "p3");
+  assert.ok(p3.points > 0, "leaving must not wipe points already earned");
+});

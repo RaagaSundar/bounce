@@ -73,11 +73,25 @@ export interface MiniGame<TState> {
    * What actually goes down the socket to one player. Different players can
    * legitimately see different things (a drawer's secret word, another pair's
    * hidden progress), so this is the only sanctioned way state reaches a phone.
+   *
+   * `now` is passed in rather than read from the clock, so views stay pure and
+   * testable like everything else here.
    */
-  getViewForPlayer(state: TState, playerId: string): unknown;
+  getViewForPlayer(state: TState, playerId: string, now: number): unknown;
 
   /** The projector view. Safe to show to a whole room. */
-  getHostView(state: TState): unknown;
+  getHostView(state: TState, now: number): unknown;
+
+  /**
+   * Optional. Called when a player's last socket closes - a shut tab, a dead
+   * battery, wifi that never came back. Without this a game waits on someone
+   * who will never act again: a duel would run its full timer against an
+   * opponent who has gone home.
+   *
+   * Only implement it where waiting on an absent player degrades the game.
+   * A player who reconnects keeps their identity and banked score regardless.
+   */
+  onPlayerLeft?(state: TState, playerId: string, now: number): TState;
 
   isComplete(state: TState): boolean;
 

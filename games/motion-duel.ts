@@ -72,7 +72,6 @@ export function thresholdAt(elapsedMs: number): number {
 }
 
 function settle(state: MotionDuelState, now: number, winnerId: string | null): MotionDuelState {
-  const seconds = Math.max(0, (now - state.startedAt) / 1000);
   const scores = { ...state.scores };
 
   for (const duellist of Object.values(state.duellists)) {
@@ -83,7 +82,6 @@ function settle(state: MotionDuelState, now: number, winnerId: string | null): M
       (duellist.id === winnerId ? WIN_POINTS : 0);
   }
 
-  void seconds;
   return { ...state, phase: "result", winnerId, phaseEndsAt: now + RESULT_MS, scores };
 }
 
@@ -168,7 +166,7 @@ export const motionDuel: MiniGame<MotionDuelState> = {
     return state;
   },
 
-  getViewForPlayer(state, playerId) {
+  getViewForPlayer(state, playerId, now) {
     const me = state.duellists[playerId];
     const opponents = Object.values(state.duellists)
       .filter((d) => d.id !== playerId)
@@ -182,7 +180,7 @@ export const motionDuel: MiniGame<MotionDuelState> = {
       opponents,
       findEndsAt: state.phase === "find" ? state.phaseEndsAt : null,
       duelEndsAt: state.phase === "steady" ? state.phaseEndsAt : null,
-      threshold: state.phase === "steady" ? +thresholdAt(state.startedAt ? Date.now() - state.startedAt : 0).toFixed(2) : null,
+      threshold: state.phase === "steady" ? +thresholdAt(now - state.startedAt).toFixed(2) : null,
       you: {
         out: me?.out ?? false,
         wobble: me ? Math.round(me.wobble) : 0,
@@ -205,6 +203,18 @@ export const motionDuel: MiniGame<MotionDuelState> = {
         score: state.scores[d.id] ?? 0,
       })),
       winner: state.winnerId ? state.duellists[state.winnerId]?.name ?? null : null,
+    };
+  },
+
+  onPlayerLeft(state, playerId, now) {
+    // A duellist who walks away forfeits, so their opponent is not left holding
+    // a phone still for 45 seconds against nobody.
+    const me = state.duellists[playerId];
+    if (!me || me.out || state.phase === "result" || state.phase === "complete") return state;
+
+    return {
+      ...state,
+      duellists: { ...state.duellists, [playerId]: { ...me, out: true, outAt: now } },
     };
   },
 

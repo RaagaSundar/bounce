@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
+import { d1SchemaStatements } from "../db/schema";
 import { catalogSummary, getGame, type AnyMiniGame } from "../games/catalog";
 import { groupPairKeys, makeGroups } from "../games/pairing";
 import type { SessionPlayer } from "../games/types";
@@ -16,6 +17,8 @@ import type { SessionPlayer } from "../games/types";
  */
 
 const TICK_MS = 120;
+/** WebSocket.OPEN — workerd's constructor doesn't expose the static, so inline it. */
+const WS_OPEN = 1;
 const MIN_NAME = 2;
 const MAX_NAME = 18;
 const ROOM_CODE = /\/api\/rooms\/([A-Za-z2-9]{6})\/live/;
@@ -31,6 +34,15 @@ type Attachment = { role: "host" } | { role: "player"; playerId: string };
 type GameInstance = { id: string; playerIds: string[]; state: unknown };
 type ActiveGame = { id: string; instances: GameInstance[] };
 
+/**
+ * Inputs never broadcast or persist directly. A motion game streams samples
+ * many times a second per player; at event scale that would mean thousands of
+ * storage writes and fan-out sends per second. Instead an input marks its
+ * instance dirty and the fixed tick flushes at most once per interval, which
+ * bounds both regardless of how hard clients push.
+ */
+const MAX_INPUTS_PER_SECOND = 30;
+
 type Env = { DB?: D1Database };
 
 export class RoomSession extends DurableObject<Env> {
@@ -40,6 +52,14 @@ export class RoomSession extends DurableObject<Env> {
   private game: ActiveGame | null = null;
   /** Every pairing seen this event, so nobody gets matched twice. */
   private metBefore = new Set<string>();
+  /** Instances changed since the last flush. Not persisted; rebuilt at runtime. */
+  private dirty = new Set<string>();
+  /** Sliding input budget per player. Cleared by hibernation, which is fine. */
+  private inputBudget = new Map<string, { windowStart: number; used: number }>();
+  /** When the current game began, for the archive record. */
+  private startedAt: number | null = null;
+  /** In-flight archive-schema bootstrap, deduped per instance. */
+  private schemaReady: Promise<void> | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -51,6 +71,7 @@ export class RoomSession extends DurableObject<Env> {
       this.roster = (await ctx.storage.get<Record<string, RosterEntry>>("roster")) ?? {};
       this.game = (await ctx.storage.get<ActiveGame>("game")) ?? null;
       this.metBefore = new Set((await ctx.storage.get<string[]>("metBefore")) ?? []);
+      this.startedAt = (await ctx.storage.get<number>("startedAt")) ?? null;
     });
   }
 
@@ -104,10 +125,60 @@ export class RoomSession extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string) {
-    // A player who drops keeps their roster entry and score - reconnecting with
-    // the same token restores their identity rather than creating a duplicate.
-    // 1006 is abnormal (wifi died) and cannot be echoed back.
-    ws.close(code === 1006 ? 1011 : code, reason);
+    // The game logic runs BEFORE the close attempt on purpose: closing a socket
+    // that is already closing throws, and that would silently skip the forfeit
+    // below.
+    this.handleDeparture(ws);
+
+    try {
+      // 1006 is abnormal (wifi died) and cannot be echoed back.
+      ws.close(code === 1006 ? 1011 : code, reason);
+    } catch {
+      // Already gone; nothing to do.
+    }
+  }
+
+  /** A socket erroring out is a departure too, not just a clean close. */
+  async webSocketError(ws: WebSocket) {
+    this.handleDeparture(ws);
+  }
+
+  /**
+   * A player who drops keeps their roster entry and score - reconnecting with
+   * the same token restores their identity rather than creating a duplicate.
+   * But a running game should stop waiting on them, if it cares.
+   */
+  private handleDeparture(ws: WebSocket) {
+    const who = attachmentOf(ws);
+    if (who?.role !== "player") return;
+    if (this.stillConnected(who.playerId, ws)) return; // another tab is open
+
+    const instance = this.instanceFor(who.playerId);
+    const game = this.game ? getGame(this.game.id) : null;
+    if (!instance || !game?.onPlayerLeft) return;
+
+    const next = game.onPlayerLeft(instance.state, who.playerId, Date.now());
+    if (next === instance.state) return;
+
+    instance.state = next;
+    this.dirty.add(instance.id);
+  }
+
+  /**
+   * True if this player still has another live socket - a second tab, or a
+   * reconnect that already landed.
+   *
+   * Identity is not enough on its own: the socket being closed can still appear
+   * in getWebSockets(), and after hibernation the wrapper handed to the close
+   * handler need not be the same object. Readiness is the reliable signal.
+   */
+  private stillConnected(playerId: string, closing: WebSocket): boolean {
+    return this.ctx.getWebSockets().some((other) => {
+      if (other === closing) return false;
+      if (other.readyState !== WS_OPEN) return false;
+      const who = attachmentOf(other);
+      return who?.role === "player" && who.playerId === playerId;
+    });
   }
 
   private async route(ws: WebSocket, message: Record<string, unknown>) {
@@ -207,14 +278,29 @@ export class RoomSession extends DurableObject<Env> {
     const instance = this.instanceFor(who.playerId);
     if (!instance) throw new SessionError("You are not in this round.");
 
-    // Date.now() here is the server's arrival time. A client cannot claim when
-    // it acted, only that it did.
-    const next = game.applyInput(instance.state, who.playerId, message.input, Date.now());
+    const now = Date.now();
+    if (!this.spendInputBudget(who.playerId, now)) return; // silently drop the flood
+
+    // `now` here is the server's arrival time. A client cannot claim when it
+    // acted, only that it did.
+    const next = game.applyInput(instance.state, who.playerId, message.input, now);
     if (next === instance.state) return;
 
     instance.state = next;
-    await this.persistGame();
-    this.broadcastGameFor(instance);
+    // Deliberately no broadcast or persist here - the tick flushes it.
+    this.dirty.add(instance.id);
+  }
+
+  /** Cheap sliding window so one client cannot flood the room. */
+  private spendInputBudget(playerId: string, now: number): boolean {
+    const entry = this.inputBudget.get(playerId);
+    if (!entry || now - entry.windowStart >= 1000) {
+      this.inputBudget.set(playerId, { windowStart: now, used: 1 });
+      return true;
+    }
+    if (entry.used >= MAX_INPUTS_PER_SECOND) return false;
+    entry.used += 1;
+    return true;
   }
 
   private async onHostStart(ws: WebSocket, message: Record<string, unknown>) {
@@ -257,6 +343,8 @@ export class RoomSession extends DurableObject<Env> {
       await this.ctx.storage.put("metBefore", [...this.metBefore]);
     }
 
+    this.startedAt = now;
+    await this.ctx.storage.put("startedAt", now);
     await this.persistGame();
     this.broadcastGame();
     await this.ctx.storage.setAlarm(now + TICK_MS);
@@ -281,21 +369,29 @@ export class RoomSession extends DurableObject<Env> {
 
     for (const instance of this.game.instances) {
       const next = game.tick(instance.state, now);
-      // Same reference means nothing happened, so no frame is broadcast.
-      if (next === instance.state) continue;
-      instance.state = next;
+      const movedByTick = next !== instance.state;
+      if (movedByTick) instance.state = next;
+
+      // Flush if the tick advanced it, or if inputs landed since the last flush.
+      // Same reference and no inputs means nothing happened, so no frame goes
+      // out and an idle room stays quiet enough to hibernate.
+      if (!movedByTick && !this.dirty.has(instance.id)) continue;
+
       changed = true;
+      this.dirty.delete(instance.id);
       this.broadcastGameFor(instance);
     }
 
     if (changed) await this.persistGame();
 
     if (this.game.instances.every((i) => game.isComplete(i.state))) {
-      this.broadcast({
-        type: "results",
-        gameId: game.id,
-        results: mergeResults(this.game.instances.map((i) => game.getResults(i.state))),
-      });
+      const results = mergeResults(this.game.instances.map((i) => game.getResults(i.state)));
+      this.broadcast({ type: "results", gameId: game.id, results });
+
+      // Hand the finished game to the archive before dropping it. Failure to
+      // archive must never take the room down, so it is caught inside.
+      await this.archive(game, results, now);
+
       this.game = null;
       await this.ctx.storage.delete("game");
       this.broadcastRoom();
@@ -341,6 +437,50 @@ export class RoomSession extends DurableObject<Env> {
     this.broadcast(this.roomPayload());
   }
 
+  /**
+   * Writes the finished game to D1, the durable system of record. The Durable
+   * Object owns "now"; this is what is still around tomorrow.
+   *
+   * Best-effort by design: a room mid-event must not fail because the archive
+   * is unreachable, so an error here is logged and swallowed.
+   */
+  private async archive(game: AnyMiniGame, results: unknown, endedAt: number) {
+    const db = this.env.DB;
+    if (!db || !this.game) return;
+
+    try {
+      // The Durable Object never goes through game-store, so nothing else
+      // bootstraps the archive table for it. Deduped per instance.
+      this.schemaReady ??= db
+        .batch(d1SchemaStatements.map((statement) => db.prepare(statement)))
+        .then(() => undefined);
+      await this.schemaReady;
+
+      await db
+        .prepare(
+          `INSERT INTO game_sessions
+             (id, room_code, game_id, scope, player_count, group_count, started_at, ended_at, results)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          this.code,
+          game.id,
+          game.scope,
+          new Set(this.game.instances.flatMap((i) => i.playerIds)).size,
+          this.game.instances.length,
+          this.startedAt ?? endedAt,
+          endedAt,
+          JSON.stringify(results),
+        )
+        .run();
+    } catch (error) {
+      // Retry the bootstrap next time rather than caching a rejected promise.
+      this.schemaReady = null;
+      console.error("Failed to archive session", error);
+    }
+  }
+
   private instanceFor(playerId: string): GameInstance | null {
     return this.game?.instances.find((i) => i.playerIds.includes(playerId)) ?? null;
   }
@@ -352,14 +492,16 @@ export class RoomSession extends DurableObject<Env> {
     const who = attachmentOf(ws);
     if (!who) return;
 
+    const now = Date.now();
+
     if (who.role === "host") {
       // The projector sees every sub-group; a phone only ever sees its own.
       send(ws, {
         type: "view",
         gameId: game.id,
         scope: game.scope,
-        view: game.getHostView(this.game.instances[0].state),
-        groups: this.game.instances.map((i) => ({ id: i.id, view: game.getHostView(i.state) })),
+        view: game.getHostView(this.game.instances[0].state, now),
+        groups: this.game.instances.map((i) => ({ id: i.id, view: game.getHostView(i.state, now) })),
       });
       return;
     }
@@ -370,7 +512,7 @@ export class RoomSession extends DurableObject<Env> {
       type: "view",
       gameId: game.id,
       scope: game.scope,
-      view: game.getViewForPlayer(instance.state, who.playerId),
+      view: game.getViewForPlayer(instance.state, who.playerId, now),
     });
   }
 

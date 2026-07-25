@@ -1,3 +1,27 @@
+/**
+ * DEPRECATED - the legacy RoomRaid quiz.
+ *
+ * Live gameplay has moved to the RoomSession Durable Object
+ * (see docs/LIVE_PROTOCOL.md). This module still backs `app/api/**` and the old
+ * client at `/`, and nothing new should be built on it.
+ *
+ * It carries known debt that is deliberately NOT being paid down, because the
+ * whole module is scheduled for deletion once the new frontend covers `/`:
+ *
+ * - Six operations are hand-implemented twice, once against D1 and once against
+ *   an in-memory Map. The Durable Object is now the in-memory-with-persistence
+ *   layer, so the fallback has stopped earning its keep.
+ * - `buildPublicState` returns the entire scenario on every response, and the
+ *   old client polls every 1300ms - several KB of static prose re-sent ~46
+ *   times a minute per phone.
+ * - `game_rooms.scenario_id` is written but never read; the multi-scenario seam
+ *   it implies was never wired. The MiniGame catalog replaces it.
+ * - `game_actions` has UNIQUE(player_id, round) over one TEXT column, which is
+ *   exactly why this could only ever model multiple choice.
+ *
+ * Refactoring this would be work on code that is about to be removed. Delete it
+ * with `app/api/**` and `app/SideQuestClient.tsx` once `/` is ported.
+ */
 import { getD1 } from "./index";
 import { d1SchemaStatements } from "./schema";
 

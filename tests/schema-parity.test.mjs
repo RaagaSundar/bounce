@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 import { d1SchemaStatements } from "../db/schema.ts";
@@ -9,10 +9,18 @@ import { d1SchemaStatements } from "../db/schema.ts";
 // the production source of truth. Nothing forces them to agree, so this checks
 // that they do.
 
-const migrationSql = await readFile(
-  new URL("../drizzle/0000_tiresome_vulcan.sql", import.meta.url),
-  "utf8",
-);
+// Every migration, in order - not just the first, or adding a table would
+// silently drift the two definitions apart.
+const migrationDir = new URL("../drizzle/", import.meta.url);
+const migrationFiles = (await readdir(migrationDir))
+  .filter((name) => name.endsWith(".sql"))
+  .sort();
+
+const migrationSql = (
+  await Promise.all(
+    migrationFiles.map((name) => readFile(new URL(name, migrationDir), "utf8")),
+  )
+).join("\n--> statement-breakpoint\n");
 
 /**
  * Strips backticks, collapses whitespace, and drops the trailing semicolon so
@@ -79,10 +87,11 @@ const migration = parse(migrationSql.split("--> statement-breakpoint"));
 test("both schema definitions were parsed", () => {
   // Exact counts, not `> 0`: a regex that silently stops matching would make
   // every comparison below pass vacuously.
-  assert.equal(runtime.tables.size, 3, "expected 3 tables from runtime statements");
-  assert.equal(migration.tables.size, 3, "expected 3 tables from the migration");
-  assert.equal(runtime.indexes.size, 5, "expected 5 indexes from runtime statements");
-  assert.equal(migration.indexes.size, 5, "expected 5 indexes from the migration");
+  assert.ok(migrationFiles.length >= 1, "no migrations found to compare against");
+  assert.equal(runtime.tables.size, 4, "expected 4 tables from runtime statements");
+  assert.equal(migration.tables.size, 4, "expected 4 tables from the migrations");
+  assert.equal(runtime.indexes.size, 7, "expected 7 indexes from runtime statements");
+  assert.equal(migration.indexes.size, 7, "expected 7 indexes from the migrations");
 });
 
 test("runtime bootstrap and migration declare the same tables", () => {

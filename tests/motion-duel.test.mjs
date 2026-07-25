@@ -112,3 +112,34 @@ test("a duel reaches completion and reports results", () => {
   assert.equal(results.scores[0].name, "Grace");
   assert.match(results.headline, /Grace/);
 });
+
+test("a duellist who leaves forfeits instead of stalling the duel", () => {
+  const { state, now } = toSteady();
+  // Without this the survivor holds a phone still for the full timer against
+  // an opponent who has gone home.
+  const left = motionDuel.onPlayerLeft(state, "p1", now + 1000);
+  assert.equal(left.duellists.p1.out, true);
+
+  const settled = motionDuel.tick(left, now + 1100);
+  assert.equal(settled.phase, "result");
+  assert.equal(settled.winnerId, "p2");
+});
+
+test("onPlayerLeft is a no-op once the duel is decided", () => {
+  const { state, now } = toSteady();
+  const out = motionDuel.applyInput(state, "p1", { type: "motion", magnitude: 50 }, now + 100);
+  const settled = motionDuel.tick(out, now + 200);
+  assert.equal(motionDuel.onPlayerLeft(settled, "p2", now + 300), settled);
+});
+
+test("views are pure - the same state and clock give the same answer", () => {
+  const { state, now } = toSteady();
+  assert.deepEqual(
+    motionDuel.getViewForPlayer(state, "p1", now + 500),
+    motionDuel.getViewForPlayer(state, "p1", now + 500),
+  );
+  // and the threshold actually tracks the clock it is handed
+  const early = motionDuel.getViewForPlayer(state, "p1", state.startedAt + 100).threshold;
+  const later = motionDuel.getViewForPlayer(state, "p1", state.startedAt + 3500).threshold;
+  assert.notEqual(early, later, "threshold should follow the passed-in clock");
+});

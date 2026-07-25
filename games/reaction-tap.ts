@@ -60,6 +60,8 @@ export type ReactionTapState = {
   goAt: number;
   taps: Record<string, Tap>;
   falseStarts: string[];
+  /** Left the room. Kept out of the "has everyone tapped?" check. */
+  absent: string[];
   lastRound: RoundSummary | null;
 };
 
@@ -154,6 +156,7 @@ export const reactionTap: MiniGame<ReactionTapState> = {
       goAt: now,
       taps: {},
       falseStarts: [],
+      absent: [],
       lastRound: null,
     };
     return armRound(base, 1, now);
@@ -198,7 +201,9 @@ export const reactionTap: MiniGame<ReactionTapState> = {
     }
 
     if (state.phase === "live") {
-      const eligible = state.players.filter((p) => !state.falseStarts.includes(p.id));
+      const eligible = state.players.filter(
+        (p) => !state.falseStarts.includes(p.id) && !state.absent.includes(p.id),
+      );
       const everyoneTapped =
         eligible.length > 0 && eligible.every((p) => Boolean(state.taps[p.id]));
       if (everyoneTapped || now >= state.goAt + LIVE_TIMEOUT_MS) {
@@ -267,6 +272,13 @@ export const reactionTap: MiniGame<ReactionTapState> = {
       lastRound: state.lastRound,
       board,
     };
+  },
+
+  onPlayerLeft(state, playerId) {
+    // They keep their banked score and stay on the leaderboard; they just stop
+    // holding up the round everyone else is waiting to finish.
+    if (state.absent.includes(playerId)) return state;
+    return { ...state, absent: [...state.absent, playerId] };
   },
 
   isComplete(state) {
