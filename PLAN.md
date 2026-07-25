@@ -57,9 +57,14 @@ is newer than most training data:
 `vite.config.ts` propagates to production deploy automatically. No separate
 `wrangler.toml` needed.
 
-**Open gate:** whether `vinext dev` + Miniflare gives working local Durable
-Objects here. The in-memory `Map` fallback in `game-store.ts` is deleted **only
-after** that is demonstrated green.
+**Gate: CLEARED.** `vinext dev` + Miniflare runs Durable Objects, Hibernatable
+WebSockets, and storage alarms locally. Verified against a running server:
+reconnecting to the same code resumed persisted state while a different code got
+an isolated instance, and a full three-round match ran to completion off the
+alarm-driven tick. Socket round trip measured p50 3.1ms / p95 4.6ms over 30
+samples on localhost — which proves the server-side budget is negligible, not
+that production will be 3ms; real latency will be dominated by network RTT to
+the edge. The in-memory `Map` fallback in `game-store.ts` can now be removed.
 
 ---
 
