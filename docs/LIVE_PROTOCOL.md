@@ -171,6 +171,77 @@ ws.onmessage = (e) => {
 `app/live/useRoomSocket.ts` is a working reference implementation with
 reconnect-with-backoff already handled.
 
+### `pair-sprint` (scope: `party`)
+
+The flagship. Two strangers who have not met get the same prompt at the same
+moment; the server scores answers they have in common.
+
+Input: `{ type: "answer", index: 0|1|2, text: string }` — send on every
+keystroke or on blur, whichever you prefer; identical text is a no-op and costs
+nothing.
+
+Player view:
+```ts
+{
+  phase: "find" | "sprint" | "reveal" | "complete",
+  colour, prompt, slots,
+  partners: [{ name, filled, answers: string[] | null }],
+  findEndsAt, sprintEndsAt, revealEndsAt,
+  you: { answers: string[], filled, score },
+  overlaps: [{ text, playerIds }],
+  matched: number,
+}
+```
+
+`partners[].answers` is `null` until the reveal — showing it earlier turns a
+simultaneous sprint into copying. `partners[].filled` is a count only, which is
+safe and builds pressure. The sprint ends early once both have filled every
+slot.
+
+Matching is worth roughly six times filling a box, because the "wait, you said
+that too?" moment is the entire point of the mode. Answers are compared
+case-insensitively with punctuation and a leading article stripped, so
+"The Beatles" and "beatles" match.
+
+Host view adds `overlaps: [{ text, names }]` — what the projector rotates
+through across all the pairs.
+
+### `crossfire` (scope: `room`)
+
+Everyone writes to one prompt, votes anonymously, and the winner is unmasked.
+
+Inputs: `{ type: "answer", text }` while `phase === "writing"`, then
+`{ type: "vote", answerId }` while `phase === "voting"`.
+
+Player view:
+```ts
+{
+  phase: "writing" | "voting" | "reveal" | "complete",
+  round, totalRounds, prompt, phaseEndsAt,
+  you: { answer, submitted, votedFor, score },
+  ballot: [{ id, text, mine, author: string | null }],
+  writtenCount, votedCount, playerCount,
+  lastRound: { round, prompt, winner: { name, text, votes } | null } | null,
+}
+```
+
+**`author` is `null` until the reveal, and `authorId` never leaves the server** —
+on the projector view too, since the ballot is shown to the whole room. Use
+`mine` to disable a player's own entry; the server rejects a self-vote anyway
+rather than trusting the UI to hide the button.
+
+Fewer than two answers skips voting entirely rather than showing a ballot that
+cannot be voted on.
+
+### Group colours
+
+Party games give each sub-group a colour so "find the phone glowing your
+colour" works. Seeds are assigned per group index, so consecutive groups always
+differ — but the palette is deliberately small (the design system is five
+colours), so with more than five groups colours repeat. **The partner's name in
+the view is the authoritative identifier**; treat colour as a fast visual
+filter, not a unique key.
+
 ## Recap / history (REST)
 
 Finished games are archived to D1 when they complete. Live play is the socket's

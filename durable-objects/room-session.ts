@@ -325,6 +325,12 @@ export class RoomSession extends DurableObject<Env> {
         ? makeGroups(players.map((p) => p.id), this.metBefore, Math.random)
         : [players.map((p) => p.id)];
 
+    // One random base, then a per-group offset. Party games derive their group
+    // colour from the seed, and independent random seeds made neighbouring
+    // groups collide often enough to break "find the phone glowing your
+    // colour". Consecutive seeds walk the palette instead.
+    const baseSeed = (Math.random() * 2 ** 32) >>> 0;
+
     this.game = {
       id: game.id,
       instances: groups.map((playerIds, index) => ({
@@ -333,7 +339,7 @@ export class RoomSession extends DurableObject<Env> {
         state: game.createInitialState({
           players: playerIds.map((id) => byId.get(id)).filter(Boolean) as SessionPlayer[],
           now,
-          seed: (Math.random() * 2 ** 32) >>> 0,
+          seed: (baseSeed + index) >>> 0,
         }),
       })),
     };

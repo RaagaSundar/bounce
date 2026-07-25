@@ -1,4 +1,6 @@
+import { crossfire } from "./crossfire";
 import { motionDuel } from "./motion-duel";
+import { pairSprint } from "./pair-sprint";
 import { reactionTap } from "./reaction-tap";
 import type { MiniGame, MiniGameMeta } from "./types";
 
@@ -10,7 +12,17 @@ export type AnyMiniGame = MiniGame<any>;
  * Every playable minigame. Adding one means adding a file next to this and a
  * line here - nothing in the transport, the Durable Object, or the lobby.
  */
-export const GAME_CATALOG: readonly AnyMiniGame[] = [reactionTap, motionDuel];
+/**
+ * Ordered as a host would run a night: a fast warm-up that needs no
+ * explanation, then the two modes that put strangers together, then the one
+ * that gives the whole room something to react to.
+ */
+export const GAME_CATALOG: readonly AnyMiniGame[] = [
+  reactionTap,
+  motionDuel,
+  pairSprint,
+  crossfire,
+];
 
 export function getGame(id: string): AnyMiniGame | null {
   return GAME_CATALOG.find((game) => game.id === id) ?? null;
