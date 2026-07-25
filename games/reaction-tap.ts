@@ -7,8 +7,14 @@ import type {
 } from "./types";
 
 /**
- * Reaction Tap - the simplest possible game, and the one where the difference
- * between 1300ms polling and a real socket push is most obvious.
+ * Reaction Tap - NOT IN ROTATION. Deliberately cut from games/catalog.ts:
+ * every shipped mode has to force two specific people to interact, and a
+ * solo-playable leaderboard does not. Kept because it is the smallest complete
+ * MiniGame, so it is the reference for writing a new one, and its tests pin the
+ * interface contract (tick's same-reference rule, view leak-proofing).
+ *
+ * The simplest possible game, and the one where the difference between 1300ms
+ * polling and a real socket push is most obvious.
  *
  * A GO appears at an unpredictable moment; everyone taps; the server ranks by
  * arrival time. Tapping before GO is a false start and scores nothing, so it is
