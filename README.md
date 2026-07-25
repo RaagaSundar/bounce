@@ -52,8 +52,14 @@ Three surfaces:
 | Route | What it is |
 |-------|------------|
 | `/` | Landing — pick a side |
-| `/host` | The big screen: giant animated QR → live lobby fill → game spectacle → podium + power pairs |
-| `/play` | The phone: join flow (name → orb builder → vibe) → lobby → thumb-sized controller → "your people tonight" |
+| `/host` | The big screen: QR + room code → lobby fill → game stage → podium |
+| `/play` | The phone: join → lobby → the controller for whatever game is running |
+| `/try` | **Both surfaces in one tab.** Start here if you have no second device. |
+
+`/try` runs a real room with the projector and a player phone side by side, each
+holding its own WebSocket to the same Durable Object. Nothing about it is
+simulated — it exists because a two-surface product is invisible until you have
+two devices in your hands.
 
 Extras carried over from the demo:
 
@@ -75,8 +81,7 @@ badges (no emoji). No neon-gradient-on-dark.
 
 ## Migration status
 
-The demo's screens under `src/` are being ported into the App Router. Until that
-lands, `src/` is the reference implementation and `app/SideQuestClient.tsx` is
-the live (unstyled) client. `src/store/session.js` holds the mocked
-`BroadcastChannel` session that the real API and, later, the WebSocket layer
-replace.
+`/`, `/host`, and `/play` are all ported to the App Router and run on the live
+socket layer. `src/` remains only as the reference implementation for screens
+not yet carried across; its mocked `BroadcastChannel` session in
+`src/store/session.js` has been superseded by `app/live/useRoomSocket.ts`.

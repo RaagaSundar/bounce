@@ -5,10 +5,29 @@ import { defineConfig } from "vite";
 // `dist/server/wrangler.json`, which is what `wrangler deploy` publishes, so
 // whatever is declared here is also what production gets. There is deliberately
 // no separate wrangler.toml.
+
+// Miniflare ignores the id locally and just creates a database, so the
+// placeholder is fine for dev. Deploying against it would silently bind a
+// database that does not exist, so set these before shipping:
 //
-// TODO(deploy): this id is a placeholder. Create a real D1 database under the
-// target Cloudflare account and substitute its id before deploying.
+//   npx wrangler d1 create bounce-d1     # prints the real id
+//   CLOUDFLARE_D1_DATABASE_ID=<id> npm run deploy
+//
+// Kept in the environment rather than committed because the id identifies a
+// real resource in a specific account.
 const PLACEHOLDER_D1_DATABASE_ID = "00000000-0000-4000-8000-000000000000";
+const d1DatabaseId = process.env.CLOUDFLARE_D1_DATABASE_ID ?? PLACEHOLDER_D1_DATABASE_ID;
+const d1DatabaseName = process.env.CLOUDFLARE_D1_DATABASE_NAME ?? "bounce-d1";
+
+if (process.env.NODE_ENV === "production" && d1DatabaseId === PLACEHOLDER_D1_DATABASE_ID) {
+  // A warning, not a throw: `npm run build` is also how CI and local smoke
+  // checks run, and neither needs a real database.
+  console.warn(
+    "\n[bounce] Building with the placeholder D1 database id.\n" +
+      "         Set CLOUDFLARE_D1_DATABASE_ID before `wrangler deploy`, or the\n" +
+      "         deployed worker will bind a database that does not exist.\n",
+  );
+}
 
 const localBindingConfig = {
   main: "./worker/index.ts",
@@ -16,8 +35,8 @@ const localBindingConfig = {
   d1_databases: [
     {
       binding: "DB",
-      database_name: "bounce-d1",
-      database_id: PLACEHOLDER_D1_DATABASE_ID,
+      database_name: d1DatabaseName,
+      database_id: d1DatabaseId,
     },
   ],
   // One Durable Object per live room. It is the strongly-consistent authority

@@ -52,6 +52,11 @@ function splitTopLevel(body) {
   return parts.map((part) => part.trim());
 }
 
+/**
+ * Replays statements in order, so a later DROP undoes an earlier CREATE. Both
+ * inputs are ordered sequences of migrations, and ignoring drops would compare
+ * a schema that never existed.
+ */
 function parse(statements) {
   const tables = new Map();
   const indexes = new Map();
@@ -63,6 +68,22 @@ function parse(statements) {
     if (table) {
       const columns = splitTopLevel(table[2]).map((line) => line.split(/\s+/)[0]);
       tables.set(table[1], columns.sort());
+      continue;
+    }
+
+    const dropTable = sql.match(/^DROP TABLE (?:IF EXISTS )?(\w+)$/i);
+    if (dropTable) {
+      tables.delete(dropTable[1]);
+      // SQLite drops a table's indexes with it.
+      for (const [name, index] of indexes) {
+        if (index.table === dropTable[1]) indexes.delete(name);
+      }
+      continue;
+    }
+
+    const dropIndex = sql.match(/^DROP INDEX (?:IF EXISTS )?(\w+)$/i);
+    if (dropIndex) {
+      indexes.delete(dropIndex[1]);
       continue;
     }
 
@@ -88,10 +109,11 @@ test("both schema definitions were parsed", () => {
   // Exact counts, not `> 0`: a regex that silently stops matching would make
   // every comparison below pass vacuously.
   assert.ok(migrationFiles.length >= 1, "no migrations found to compare against");
-  assert.equal(runtime.tables.size, 4, "expected 4 tables from runtime statements");
-  assert.equal(migration.tables.size, 4, "expected 4 tables from the migrations");
-  assert.equal(runtime.indexes.size, 7, "expected 7 indexes from runtime statements");
-  assert.equal(migration.indexes.size, 7, "expected 7 indexes from the migrations");
+  // D1 is the archive now: one table survives migration replay.
+  assert.equal(runtime.tables.size, 1, "expected 1 table from runtime statements");
+  assert.equal(migration.tables.size, 1, "expected 1 table after replaying migrations");
+  assert.equal(runtime.indexes.size, 2, "expected 2 indexes from runtime statements");
+  assert.equal(migration.indexes.size, 2, "expected 2 indexes after replaying migrations");
 });
 
 test("runtime bootstrap and migration declare the same tables", () => {
@@ -117,20 +139,18 @@ test("runtime bootstrap and migration declare the same indexes", () => {
   }
 });
 
-test("player identity and room codes stay unique", () => {
-  // Room codes are handed out verbally off a projector, and a player token is
-  // the only credential a phone holds. Both must stay collision-free.
-  assert.equal(migration.indexes.get("game_rooms_code_unique")?.unique, true);
-  assert.equal(migration.indexes.get("game_players_token_unique")?.unique, true);
+test("the archive is queryable by room and by game", () => {
+  // Both are how a recap screen and any cross-event question reach this table;
+  // without them those become full scans.
+  assert.deepEqual(migration.indexes.get("game_sessions_room_idx")?.columns, ["room_code", "ended_at"]);
+  assert.deepEqual(migration.indexes.get("game_sessions_game_idx")?.columns, ["game_id", "ended_at"]);
 });
 
-test("one action per player per round is still enforced", () => {
-  // This constraint is what limits the game to multiple choice: it cannot model
-  // a drawing stroke, a vote plus a guess, or a stream of tap timestamps. The
-  // minigame rebuild has to replace it with an instance-scoped input log, and
-  // this assertion should be updated in the same change - deliberately, not by
-  // accident.
-  const constraint = migration.indexes.get("game_actions_player_round_unique");
-  assert.equal(constraint?.unique, true);
-  assert.deepEqual(constraint?.columns, ["player_id", "round"]);
+test("dropped quiz tables stay dropped", () => {
+  // The old engine's tables were removed with it. If one reappears in either
+  // definition, something resurrected the quiz schema by accident.
+  for (const dead of ["game_rooms", "game_players", "game_actions"]) {
+    assert.equal(runtime.tables.has(dead), false, `${dead} is back in the runtime schema`);
+    assert.equal(migration.tables.has(dead), false, `${dead} is back after migration replay`);
+  }
 });

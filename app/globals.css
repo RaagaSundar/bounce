@@ -5,6 +5,14 @@
 @import '@fontsource/archivo';
 @import '@fontsource/archivo/600.css';
 @import '@fontsource/archivo/700.css';
+@import '@fontsource/unbounded';
+@import '@fontsource/unbounded/600.css';
+@import '@fontsource/unbounded/700.css';
+@import '@fontsource/unbounded/900.css';
+@import '@fontsource/space-grotesk';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
 
 :root {
   --ink: #11111a;
@@ -2105,4 +2113,177 @@ summary:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .grain::after, .blink, .stamp-in, .shake-hard, .go-flare { animation: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SKIN: ARCADE — the original Bounce look. Deep violet space, glass panels,
+   neon glow, Unbounded display type. Scoped exactly like .skin-ink-acid so
+   both skins can coexist while screens migrate.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.skin-arcade {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  --violet: #8b5cf6;
+  --magenta: #ff3dae;
+  --lime: #c8ff3e;
+  --cyan: #3ee7ff;
+  --amber: #ffb03a;
+  --coral: #ff5c5c;
+  --milk: #f4f0ff;
+  --faint: #9a8fc0;
+  --space: #0a0612;
+  background:
+    radial-gradient(1100px 700px at 15% -10%, rgb(139 92 246 / 0.18), transparent 60%),
+    radial-gradient(900px 600px at 108% 12%, rgb(255 61 174 / 0.12), transparent 55%),
+    radial-gradient(1000px 800px at 50% 118%, rgb(62 231 255 / 0.09), transparent 60%),
+    var(--space);
+  color: var(--milk);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+.skin-arcade ::selection { background: var(--magenta); color: #fff; }
+.skin-arcade ::-webkit-scrollbar { display: none; }
+.skin-arcade * { scrollbar-width: none; }
+
+/* starfield: two layered dot grids, drifting apart very slowly */
+.skin-arcade::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgb(244 240 255 / 0.35) 1px, transparent 1.6px),
+    radial-gradient(circle, rgb(244 240 255 / 0.18) 1px, transparent 1.4px);
+  background-size: 190px 170px, 110px 130px;
+  background-position: 20px 40px, 70px 10px;
+  animation: star-drift 60s linear infinite;
+}
+@keyframes star-drift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-60px); }
+}
+
+.skin-arcade .font-display { font-family: 'Unbounded', system-ui, sans-serif; }
+
+.skin-arcade .glass {
+  background: rgb(255 255 255 / 0.05);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.skin-arcade .gradient-hot { background-image: linear-gradient(100deg, var(--violet), var(--magenta)); }
+.skin-arcade .gradient-text {
+  background-image: linear-gradient(95deg, var(--violet), var(--magenta) 45%, var(--amber));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.skin-arcade .glow-lime { text-shadow: 0 0 24px rgb(200 255 62 / 0.65); }
+.skin-arcade .glow-magenta { text-shadow: 0 0 26px rgb(255 61 174 / 0.6); }
+.skin-arcade .glow-cyan { text-shadow: 0 0 24px rgb(62 231 255 / 0.6); }
+.skin-arcade .glow-violet { text-shadow: 0 0 30px rgb(139 92 246 / 0.8); }
+
+/* rotating rainbow border for the hero cards / QR */
+@property --arc-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+.skin-arcade .conic-border { position: relative; }
+.skin-arcade .conic-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--arc-angle), var(--violet), var(--magenta), var(--amber), var(--lime), var(--cyan), var(--violet));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: arc-spin 5s linear infinite;
+  pointer-events: none;
+}
+@keyframes arc-spin { to { --arc-angle: 360deg; } }
+
+/* expanding ping ring — the visual "ding" */
+@keyframes ring-out {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+.skin-arcade .ring-out { animation: ring-out 1.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite; }
+.skin-arcade .ring-once { animation: ring-out 0.7s cubic-bezier(0.2, 0.6, 0.3, 1) both; }
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-16px) rotate(3deg); }
+}
+.skin-arcade .float-y { animation: float-y 6s ease-in-out infinite; }
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.skin-arcade .pulse-soft { animation: pulse-soft 2.2s ease-in-out infinite; }
+
+@keyframes pop-in {
+  0% { transform: scale(0) rotate(-14deg); opacity: 0; }
+  62% { transform: scale(1.18) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.skin-arcade .pop-in { animation: pop-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+
+@keyframes slam-in {
+  0% { transform: scale(2.6); opacity: 0; filter: blur(10px); }
+  60% { transform: scale(0.94); opacity: 1; filter: blur(0); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.skin-arcade .slam-in { animation: slam-in 0.42s cubic-bezier(0.2, 1, 0.3, 1) both; }
+
+@keyframes shimmer-x {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.skin-arcade .btn-arcade {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  font-family: 'Unbounded', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: transform 0.12s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.skin-arcade .btn-arcade:hover { transform: scale(1.045) rotate(-0.5deg); }
+.skin-arcade .btn-arcade:active { transform: scale(0.92); }
+.skin-arcade .btn-arcade:disabled { opacity: 0.3; pointer-events: none; }
+.skin-arcade .btn-arcade::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.35) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shimmer-x 2.8s linear infinite;
+}
+.skin-arcade .btn-lime { background: var(--lime); color: #101800; box-shadow: 0 0 36px -6px rgb(200 255 62 / 0.6), 0 10px 30px -10px rgb(0 0 0 / 0.5); }
+.skin-arcade .btn-hot { background-image: linear-gradient(100deg, var(--violet), var(--magenta)); color: #fff; box-shadow: 0 0 36px -6px rgb(255 61 174 / 0.6), 0 10px 30px -10px rgb(0 0 0 / 0.5); }
+.skin-arcade .btn-ghost { background: rgb(255 255 255 / 0.06); border: 1px solid rgb(255 255 255 / 0.14); color: var(--milk); }
+
+/* soft equalizer bars for "the room is warming up" */
+@keyframes eq-y {
+  0%, 100% { transform: scaleY(0.25); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes wobble-shake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  25% { transform: translate(-5px, 3px) rotate(-1.4deg); }
+  55% { transform: translate(5px, -4px) rotate(1.2deg); }
+  80% { transform: translate(-3px, -2px) rotate(-0.8deg); }
+}
+.skin-arcade .wobble-shake { animation: wobble-shake 0.4s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skin-arcade::before,
+  .skin-arcade .ring-out, .skin-arcade .ring-once, .skin-arcade .float-y,
+  .skin-arcade .pulse-soft, .skin-arcade .pop-in, .skin-arcade .slam-in,
+  .skin-arcade .btn-arcade::after, .skin-arcade .conic-border::before,
+  .skin-arcade .wobble-shake { animation: none; }
 }

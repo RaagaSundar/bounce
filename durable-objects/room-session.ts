@@ -543,7 +543,18 @@ function mergeResults(all: { scores: { playerId: string; name: string; points: n
   const scores = all
     .flatMap((r) => r.scores)
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
-  return { scores, headline: all[0]?.headline ?? "Round over" };
+
+  // One group means one game, so its own headline is the right one. Across many
+  // sub-groups it is not: picking any single duel's headline would name an
+  // arbitrary pair as though they had won the room. Name the overall leader.
+  const headline =
+    all.length === 1
+      ? all[0].headline
+      : scores.length
+        ? `${scores[0].name} tops the room`
+        : "Round over";
+
+  return { scores, headline };
 }
 
 function send(ws: WebSocket, payload: unknown) {
