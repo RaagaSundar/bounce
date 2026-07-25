@@ -20,6 +20,15 @@ const localBindingConfig = {
       database_id: PLACEHOLDER_D1_DATABASE_ID,
     },
   ],
+  // One Durable Object per live room. It is the strongly-consistent authority
+  // for "what is happening in this room right now"; D1 above is the archive.
+  durable_objects: {
+    bindings: [{ name: "ROOM_SESSION", class_name: "RoomSession" }],
+  },
+  // new_sqlite_classes (not new_classes) so the object gets SQLite-backed
+  // storage, which is what Hibernatable WebSockets and drizzle-orm's
+  // durable-sqlite driver both expect.
+  migrations: [{ tag: "v1", new_sqlite_classes: ["RoomSession"] }],
 };
 
 export default defineConfig(async () => {

@@ -1,10 +1,18 @@
-/** Cloudflare Worker entry point for the vinext-starter template. */
+/** Cloudflare Worker entry point. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+
+// Durable Object classes have to be exported from the worker entry module for
+// the runtime to find them.
+export { RoomSession } from "../durable-objects/room-session";
+
+/** Live gameplay socket: /api/rooms/:code/live */
+const LIVE_SOCKET_PATH = /^\/api\/rooms\/([A-Za-z2-9]{6})\/live$/;
 
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  ROOM_SESSION: DurableObjectNamespace;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -28,6 +36,15 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    // Moment-to-moment gameplay runs over a socket held by the room's Durable
+    // Object. Everything else still falls through to the App Router below.
+    const live = url.pathname.match(LIVE_SOCKET_PATH);
+    if (live) {
+      const code = live[1].toUpperCase();
+      const room = env.ROOM_SESSION.get(env.ROOM_SESSION.idFromName(code));
+      return room.fetch(request);
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
