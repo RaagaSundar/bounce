@@ -41,7 +41,7 @@ surfaces intact:
 - `db/schema.ts` and `drizzle/**` — D1 persistence and migrations
 
 The full HTTP contract is documented in
-[docs/FABLE_FRONTEND.md](docs/FABLE_FRONTEND.md). Room codes are `[A-Z2-9]{6}`
+[docs/LIVE_PROTOCOL.md](docs/LIVE_PROTOCOL.md). Room codes are `[A-Z2-9]{6}`
 with ambiguous glyphs excluded; host and player tokens stay out of URLs and off
 the projector.
 
@@ -61,13 +61,6 @@ holding its own WebSocket to the same Durable Object. Nothing about it is
 simulated — it exists because a two-surface product is invisible until you have
 two devices in your hands.
 
-Extras carried over from the demo:
-
-- `?lite` on any route swaps the WebGL backdrops for CSS — for weak event
-  hardware (and headless testing).
-- `window.__bounce` exposes the zustand store in the console for driving a
-  session manually.
-
 ## Design language — "Ink & Acid"
 
 Event-ephemera system: the host screen is a stage LED board in a dark venue
@@ -79,9 +72,13 @@ stickers), film grain everywhere, hard offset shadows instead of glow,
 difference-blend wordmark on the landing seam. Avatars are generated SVG sticker
 badges (no emoji). No neon-gradient-on-dark.
 
-## Migration status
+## Status
 
-`/`, `/host`, and `/play` are all ported to the App Router and run on the live
-socket layer. `src/` remains only as the reference implementation for screens
-not yet carried across; its mocked `BroadcastChannel` session in
-`src/store/session.js` has been superseded by `app/live/useRoomSocket.ts`.
+`/`, `/host`, and `/play` all run on the live socket layer. The original quiz
+engine (`db/game-store.ts`, its REST routes, and the `src/` demo it was ported
+from) has been deleted — D1 is now purely the archive, written when a game
+finishes and read back via `GET /api/rooms/:code/history`.
+
+Two minigames ship: **Reaction Tap** (room scope) and **Motion Duel** (party
+scope — pairs strangers who have not met and makes them duel). Adding another is
+one file in `games/` plus a line in `games/catalog.ts`.
